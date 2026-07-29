@@ -133,6 +133,36 @@ Also carries vertical grid info (z = 75 levels) — irrelevant here since SI3 fi
 are 2D, but present because it's the same file NEMO uses for the full ocean
 configuration.
 
+## Environment
+
+Analysis is carried out in the conda environment **`env010`** (Python 3.11.14).
+Key packages, grouped by role in the pipeline:
+
+| Role | Package(s) | Version |
+|---|---|---|
+| NetCDF I/O | `xarray`, `netcdf4`, `h5netcdf`, `cf_xarray` | 2026.1.0, 1.7.4, 1.8.1, 0.10.11 |
+| Lagrangian simulation | `parcels`, `opendrift` | 3.1.4, 1.14.10 |
+| Trajectory analysis | `trajan` | 0.8.0 |
+| Regridding | `xesmf`, `esmf`/`esmpy` | 0.9.2, 8.9.1 |
+| Grid-aware diagnostics (divergence, vorticity) | `xgcm` | 0.10.1 |
+| Geospatial / satellite | `pyresample`, `cartopy`, `pyproj`, `shapely` | 1.35.0, 0.25.0, 3.7.2, 2.1.2 |
+| Numerics | `numpy`, `scipy`, `pandas`, `numba` | 2.3.5, 1.17.0, 3.0.0, 0.63.1 |
+| Parallel / out-of-core | `dask`, `distributed`, `mpi4py` | 2026.1.2, 2026.1.2, 4.1.2 |
+| Plotting | `matplotlib-base`, `bokeh` | 3.10.8, 3.8.2 |
+| Interactive use | `jupyter`, `ipykernel`, `ipython` | —, 7.2.0, 9.10.0 |
+
+To activate:
+
+```bash
+conda activate env010
+```
+
+Full package list: `conda list -n env010`.
+
+> **Maintenance:** this table reflects the environment as of the last README
+> update. When a package is added to `env010` for this project, note it here
+> the next time the README is revised.
+
 ## Status
 
 This project is under active development. This README will be updated as the
