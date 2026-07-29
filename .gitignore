@@ -1,0 +1,27 @@
+# Byte-compiled / cache
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Environment / secrets
+.env
+
+# OS cruft
+.DS_Store
+
+# Data (large NEMO/satellite output lives outside the repo, under ~/Data)
+*.nc
+*.grib
+*.grib2
+
+# Editor
+.vscode/
+.idea/
