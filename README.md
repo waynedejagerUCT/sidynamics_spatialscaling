@@ -1,20 +1,48 @@
 # Scale-Dependent Sea-Ice Kinematics: NEMO vs. Satellite-Derived Drift
 
+## Key documents
+
+| File | Purpose |
+|---|---|
+| [`README.md`](README.md) | This document: project overview, approach, data locations, outstanding tasks and environment. |
+| [`ProjectOutline.md`](ProjectOutline.md) | The scientific goals and research objectives (RO2, RO3) for understanding the physical sea-ice system. Use it to inform analysis and diagnostic choices. |
+| [`TechnicalScientificReference_SEAICE_DYN_003_v5.md`](TechnicalScientificReference_SEAICE_DYN_003_v5.md) | Complete technical and scientific reference for `SEAICE_DYN_003`: a forced standalone NEMO 5.0 + SI3 (SAS) Antarctic sea-ice hindcast run on UCT's HPC cluster across several resolutions, on domains trimmed to 40°S. It covers the cluster environment, build, domain preparation, forcing, interpolation weights, run configuration, verification and results, with the reasoning behind each scientific choice. Use it to interrogate how the model data were generated. |
+
 ## Aim
 
-This project determines which dynamical processes in Antarctic sea-ice drift are
-resolved as a function of spatial scale. Lagrangian trajectory diagnostics computed
-from model output are compared against satellite-derived drift at matched
-resolutions, in order to identify where model and observational representations of
-sea-ice kinematics agree, and where they diverge.
+This project establishes whether, and at what spatial scales, a sea-ice model
+reproduces the observed Antarctic sea-ice state and the balance of processes that
+drives it. A NEMO-SI3 resolution hierarchy (2° to 1/16°), run standalone under
+fixed ERA5 and GLORYS12 forcing, is compared with satellite-derived drift at a
+common effective scale. Every consistency statement names that scale, and only
+differences beyond satellite retrieval uncertainty are treated as model
+deficiencies.
+
+Two kinematic tests are applied across the hierarchy:
+
+- **Deformation** (divergence and shear) directly tests the model's rheology.
+- **Vorticity**, which the rheology excludes and which emerges from the full
+  momentum balance, is a first-order diagnostic. It has not been evaluated
+  against observations before. A vorticity misfit is attributed to missing
+  rotational physics only after forcing, drag, internal-stress and numerical
+  causes have been ruled out.
+
+Lagrangian and Eulerian diagnostics, together with storm case studies, show where
+model and observations agree and where they diverge. Advective and non-advective
+contributions to concentration change are also compared, to test whether the
+model gets the right state for the right reasons. The finest member, GLOB16,
+additionally provides the reference field for designing *in situ* buoy
+deployments.
 
 ## Approach
 
 **Eulerian source data**
 
-- NEMO SI3 (`SEAICE_DYN_002`) ice velocity fields at multiple grid resolutions:
-  ORCA2, ORCA1, ORCA05, ORCA025, ORCA12.
-- A satellite drift-retrieval product, to be incorporated as a parallel data source.
+- NEMO SI3 (`SEAICE_DYN_003`) ice velocity fields at multiple grid resolutions. Hierarchical members include (coarse to fine):
+  ORCA2, ORCA1, ORCA05, ORCA025, GLOB16.
+- A satellite drift-retrieval product, to be incorporated as a parallel data source. Two satellite products being considered:
+  OSISAF 455 daily average at 75 km spatial resolution (found in /home/waynedj/Data/seaicedrift/osisaf/24hr/south/merged)
+  OSISAF S2S at 62.5 km spatial resolution (found in /home/waynedj/Data/seaicedrift/osisaf/swath)
 
 **Lagrangian simulation**
 
@@ -23,20 +51,45 @@ Synthetic ice parcels are seeded and advected through each velocity field using
 
 **Diagnostics**
 
-For each trajectory set, computed and compared across resolution and source:
+Each diagnostic is computed for every hierarchy member and satellite product,
+compared at a stated common effective scale, and carries the satellite
+retrieval uncertainty through so that only significant differences are
+interpreted.
+
+*Eulerian (gridded drift fields)*
+
+- Drift speed and direction, and ice concentration (state consistency)
+- Divergence, shear and total deformation (tests the rheology)
+- Vorticity, and the ratio of vorticity to total deformation
+- Change in deformation and vorticity with averaging scale
+- Eq. 1 partition: advection term, divergence term and residual Θ, with ridging
+  grouped with the non-advective terms
+
+*Lagrangian (simulated parcel trajectories)*
 
 - Advection pathways
-- Divergence
-- Vorticity
-- Meandering index
+- Single-parcel and pair dispersion
+- Deformation and rotation from parcel triangles (the quantities a buoy array
+  measures)
+- Meandering index, with model trajectories subsampled to the satellite timestep
 - Cumulative distance travelled
-- Zones of drift retention
+- Zones of drift retention (also informs buoy deployment design)
+
+*Attribution (for vorticity and deformation misfits)*
+
+- Curl of air–ice and ocean–ice stress
+- Ocean surface current vorticity
+- Internal-stress force (not yet in model output; see Outstanding tasks)
+
+*Synoptic events*
+
+- Storm composites and cyclone case studies of vorticity and deformation
 
 **Synthesis**
 
-Identification of the spatial scale at which specific dynamical features (e.g.
-small-scale divergence, retention zones) become resolved or lost, and
-characterisation of how model and satellite representations diverge.
+For each diagnostic, identify the effective scale at which a feature (e.g.
+synoptic-scale vorticity, small-scale divergence, retention zones) becomes
+resolved or is lost across the hierarchy.
 
 ## Repository structure
 
@@ -44,112 +97,92 @@ characterisation of how model and satellite representations diverge.
 .
 ├── preprocessing/   Scripts for reading, regridding, and preparing NEMO and
 │                     satellite velocity fields ahead of Lagrangian simulation.
+├── scripts/          NEMO domain configuration utilities:
+│   ├── audit_domain_cfg.py   Read-only audit of domain_cfg files for inclusion
+│   │                         in the SEAICE_DYN_003 resolution hierarchy.
+│   └── trim_domain_cfg.py    Trims a domain_cfg file to a southern band below a
+│                             target latitude (for the standalone SI3 setup).
 ├── plots/            Figures and plotting scripts for diagnostics and results.
 └── misc/             Supporting scripts, notes, and other project material.
 ```
 
 ## Data
 
-NEMO output is not stored in this repository. It is expected locally under:
+All datasets live outside this repository under `~/Data/`. This is deliberate:
+the same holdings are shared by several other projects. Raw dataset `.nc` files
+must never be committed or pushed to GitHub unless explicitly requested (`*.nc`
+is excluded in `.gitignore`).
+
+### NEMO
+
+NEMO output is expected locally under:
 
 ```
-~/Data/NEMO/SEAICE_DYN_002/
+~/Data/NEMO/SEAICE_DYN_003/
 ├── ORCA2/
 ├── ORCA1/
 ├── ORCA05/
 ├── ORCA025/
-└── ORCA12/
+└── GLOB16/
 ```
 
 Each resolution subdirectory is populated post-run with that configuration's NEMO
-output (`_icemod`, `_grid_T`, `_sbcwind` files) and `domain_cfg.nc`.
+output (`_icemod`, `_grid_T`, `_sbcwind` files) and its own domain file
+(`domain_cfg_<RES>_*.nc`, e.g. `domain_cfg_ORCA025_ANT40S.nc`).
 
-> **Status:** ORCA025 is currently populated from `SEAICE_DYN_002`
-> (segment-by-segment archival in progress). Other resolutions are pending.
+> **Status:** GLOB16 resolution member output is pending. To be included in Kinematics analysis later
 
-Satellite drift data and retrieval-algorithm output will be added as a parallel
-source once incorporated, likely under a sibling directory (e.g. `SATELLITE/` or
-per-product subfolders).
+### Satellite drift (OSISAF)
 
-### NEMO output files
+Southern Hemisphere OSISAF sea-ice drift products are expected locally under:
 
-Each monthly segment produces up to four NetCDF files, named
-`SEAICE_DYN_002_<freq>_<startdate>_<enddate>_<stream>.nc`. Dates change per
-segment; file structure and variables do not.
+```
+~/Data/seaicedrift/osisaf/
+├── 24hr/south/merged/        OSISAF 455 daily drift, 75 km (EASE2 grid)
+│   ├── <YYYY>/<MM>/          Daily files, 1990–2025
+│   └── monthly_mean/         Derived monthly means (sh_monthly_mean_<YYYY>_<MM>.nc)
+└── swath/                    OSISAF S2S swath-to-swath drift, 62.5 km
+    └── <YYYY>/<MM>/<DD>/     Per-swath-pair files (AMSR2); currently 13–31 Jul 2019 only
+```
 
-#### `..._3h_..._icemod.nc` — sea-ice state and momentum (3-hourly)
 
-Grid: 1440×1050 (ORCA025), `time_counter` at 3 h steps. **Primary file for the
-drift analysis** — `sivelu`/`sivelv` are what feed the Lagrangian simulator.
+## Outstanding tasks, gaps and decisions
 
-| Variable | Description | Units |
-|---|---|---|
-| `siconc` | Ice concentration | fraction, 0–1 |
-| `sithic` | Ice thickness | m |
-| `sivelu`, `sivelv` | Ice velocity, i/j components on the model grid | m/s |
-| `utau_ai`, `vtau_ai` | Air → ice stress (relative to ice motion) | N/m² |
-| `utau_oi`, `vtau_oi` | Ocean → ice stress | N/m² |
+> **These must be considered before the GLOB16 production run.** Some can only be
+> fixed by changing the model output configuration, and adding outputs afterwards
+> means running the simulations again.
 
-#### `..._1d_..._grid_T.nc` — prescribed ocean surface (daily)
+**Model output (requires changes to the run configuration)**
 
-Same grid, `time_counter` at 1-day steps. Daily because the source (GLORYS) is
-itself a daily mean — no sub-daily signal exists to sample. Use `ssu_m`/`ssv_m`
-for the ocean-driven component of relative-velocity diagnostics.
+- **No ice-area tendency diagnostics.** `_icemod` holds only `siconc`, `sithic`,
+  `sivelu`/`sivelv` and the air–ice and ocean–ice stresses. The WP2.3 partition
+  needs SI3's own dynamic and thermodynamic area tendencies, with ridging grouped
+  with the non-advective terms. These outputs need enabling.
+- **No internal-stress term.** Step 2 of the vorticity attribution sequence needs
+  the internal-stress force. Without it, the term must be estimated as the
+  residual of the momentum balance, which adds error. Output it directly.
+- **Simulation period.** The current hierarchy covers Mar–Nov 2019, whereas the
+  WP3.1 reference realisation is the 2022 season. Decide whether the hierarchy
+  is also run for 2022.
+- **Numerical control experiments.** Decide the solver settings to vary at fixed
+  resolution (WP2.1) before production runs.
 
-| Variable | Description | Units |
-|---|---|---|
-| `ssu_m`, `ssv_m` | Ocean surface current, interpolated onto the model grid and felt by the ice | m/s |
-| `sst_m`, `sss_m` | Sea surface temperature, salinity | °C, psu |
-| `ssh_m` | Sea surface height | m |
+**Satellite data**
 
-#### `..._3h_..._sbcwind.nc` — atmospheric wind forcing (3-hourly)
+- **Swath coverage.** OSISAF S2S, the primary comparison product (WP2.2), is
+  currently held only for 13–31 Jul 2019. Decide whether to acquire more.
+- **Retrieval uncertainty.** Per-retrieval uncertainties (RO1 inputs) must be
+  carried through to every derived diagnostic, since gradients amplify error.
 
-Added from segment 1 onward for the turning-angle diagnostic.
+**Diagnostics**
 
-| Variable | Description | Units |
-|---|---|---|
-| `utau_oce`, `vtau_oce` | Open-ocean wind stress; with current-feedback disabled, direction is the absolute 10 m wind direction (unlike `utau_ai`, which is relative) | N/m² |
-| `wspd` | 10 m wind speed magnitude | m/s |
-
-#### `..._1mo_..._SBC_scalar.nc` — monthly scalar diagnostics
-
-Monthly, only for segments spanning a full calendar month (not segment 1). Ten
-scalar time series (total ice volume, area, salt/heat content, and their drifts)
-— a conservation check, not intended for the drift analysis itself.
-
-#### `domain_cfg.nc` — static grid geometry (once-off)
-
-Copied once, shared across all segments. Needed alongside the output files for
-anything beyond raw velocity fields — cell-area weighting, masking land, or
-converting grid indices to lon/lat for Lagrangian seeding.
-
-| Variable | Description |
-|---|---|
-| `e1t`, `e2t` | Grid cell dimensions (m); needed for any area-weighted quantity (total ice area, flux calculations) |
-| `tmask` | Land/ocean mask |
-| `nav_lon`, `nav_lat` | Cell-centre coordinates |
-
-Also carries vertical grid info (z = 75 levels) — irrelevant here since SI3 fields
-are 2D, but present because it's the same file NEMO uses for the full ocean
-configuration.
+- **Time matching.** Model trajectories (3-hourly) must be subsampled to the
+  satellite timestep before comparing time-sensitive metrics such as the
+  meandering index.
 
 ## Environment
 
 Analysis is carried out in the conda environment **`env010`** (Python 3.11.14).
-Key packages, grouped by role in the pipeline:
-
-| Role | Package(s) | Version |
-|---|---|---|
-| NetCDF I/O | `xarray`, `netcdf4`, `h5netcdf`, `cf_xarray` | 2026.1.0, 1.7.4, 1.8.1, 0.10.11 |
-| Lagrangian simulation | `parcels`, `opendrift` | 3.1.4, 1.14.10 |
-| Trajectory analysis | `trajan` | 0.8.0 |
-| Regridding | `xesmf`, `esmf`/`esmpy` | 0.9.2, 8.9.1 |
-| Grid-aware diagnostics (divergence, vorticity) | `xgcm` | 0.10.1 |
-| Geospatial / satellite | `pyresample`, `cartopy`, `pyproj`, `shapely` | 1.35.0, 0.25.0, 3.7.2, 2.1.2 |
-| Numerics | `numpy`, `scipy`, `pandas`, `numba` | 2.3.5, 1.17.0, 3.0.0, 0.63.1 |
-| Parallel / out-of-core | `dask`, `distributed`, `mpi4py` | 2026.1.2, 2026.1.2, 4.1.2 |
-| Plotting | `matplotlib-base`, `bokeh` | 3.10.8, 3.8.2 |
-| Interactive use | `jupyter`, `ipykernel`, `ipython` | —, 7.2.0, 9.10.0 |
 
 To activate:
 
@@ -158,10 +191,6 @@ conda activate env010
 ```
 
 Full package list: `conda list -n env010`.
-
-> **Maintenance:** this table reflects the environment as of the last README
-> update. When a package is added to `env010` for this project, note it here
-> the next time the README is revised.
 
 ## Status
 
