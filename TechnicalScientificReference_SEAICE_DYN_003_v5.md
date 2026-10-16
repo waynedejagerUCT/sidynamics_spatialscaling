@@ -1276,11 +1276,18 @@ Per member: `~/Data/NEMO/SEAICE_DYN_003/<GRID>/` — 31 output files plus the **
 | `_sbcwind` | 3 h | 1 824 | `utau_oce`, `vtau_oce`, `wspd` |
 | `_grid_T` | 1 d | 228 | `ssu_m`, `ssv_m`, `sst_m`, `sss_m`, `ssh_m` |
 | `_SBC_scalar` | 1 mo | 7 | 10 ice-budget scalars (**Southern Hemisphere only**) |
-| `domain_cfg.nc` | static | — | `e1t`, `e2t`, `top_level`, `bottom_level`, `glamt`, `gphit`, `nav_lon`, `nav_lat` |
+| `domain_cfg.nc` | static | — | `e1t`, `e2t`, `top_level`, `bottom_level`, `glamt`, `gphit`, `nav_lon`, `nav_lat`; also the U/V/F metrics and positions (`e1u`, `e2u`, `e1v`, `e2v`, `e1f`, `e2f`, `glamu/v/f`, `gphiu/v/f`, `ff_f`, `ff_t`) |
 
 **Field → diagnostic mapping:**
 
-- Lagrangian seeding / drift: `sivelu`, `sivelv` (T-grid, model i/j frame).
+- Lagrangian seeding / drift: `sivelu`, `sivelv` (model i/j frame). **Values are on the native
+  C-grid U and V points, not T points.** `icewri.F90:134-135` writes the raw `u_ice`/`v_ice` arrays
+  without interpolation; `field_def_nemo-ice.xml` only *labels* them `grid_T_2D`, so the files carry
+  T-point `nav_lon`/`nav_lat`. Confirmed in ORCA2 output: every ice-covered T cell with land to its
+  east has `sivelu = 0` (U-point land mask). Position them with `glamu`/`gphiu` and
+  `glamv`/`gphiv` from `domain_cfg`, and compute divergence (T) and vorticity (F) with the C-grid
+  metrics (`e1u`, `e2v`, `e1f`, `e2f`, …). The rheology force-balance terms (`intstrx`, `corstrx`,
+  `dssh_dx`, …) are likewise U/V-point arrays.
 - Relative-velocity decomposition: `sivelu`/`sivelv` minus `ssu_m`/`ssv_m`. The prescribed ocean
   fields are post-interpolation, post-rotation, time-interpolated and land-masked — what the ice
   actually felt. They differ between members despite an identical source, because the interpolation

@@ -5,6 +5,7 @@
 | File | Purpose |
 |---|---|
 | [`README.md`](README.md) | This document: project overview, approach, data locations, outstanding tasks and environment. |
+| [`ROADMAP.md`](ROADMAP.md) | Analysis roadmap: sections, per-task status and blockers, and model rerun progress per member. Update as work completes. |
 | [`ProjectOutline.md`](ProjectOutline.md) | The scientific goals and research objectives (RO2, RO3) for understanding the physical sea-ice system. Use it to inform analysis and diagnostic choices. |
 | [`TechnicalScientificReference_SEAICE_DYN_003_v5.md`](TechnicalScientificReference_SEAICE_DYN_003_v5.md) | Complete technical and scientific reference for `SEAICE_DYN_003`: a forced standalone NEMO 5.0 + SI3 (SAS) Antarctic sea-ice hindcast run on UCT's HPC cluster across several resolutions, on domains trimmed to 40°S. It covers the cluster environment, build, domain preparation, forcing, interpolation weights, run configuration, verification and results, with the reasoning behind each scientific choice. Use it to interrogate how the model data were generated. |
 
@@ -147,6 +148,8 @@ Southern Hemisphere OSISAF sea-ice drift products are expected locally under:
 
 
 ## Outstanding tasks, gaps and decisions
+
+Task-level status and blockers are tracked in [`ROADMAP.md`](ROADMAP.md).
 
 > **These must be considered before the GLOB16 production run.** Some can only be
 > fixed by changing the model output configuration, and adding outputs afterwards
