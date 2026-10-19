@@ -31,10 +31,10 @@ GLOB16 (1/16°) is a stated-caveat extension member from a different grid family
 
 | Member | Trimmed | Weights | v1 production | v1 verified | v2 production | v2 verified |
 |---|---|---|---|---|---|---|
-| ORCA2 | yes | yes | complete | passed | **complete** (job 1502542) | `verify_logs.sh` passed |
-| ORCA1 | yes | yes | complete | passed | **complete** (job 1502660) | `verify_logs.sh` passed |
-| ORCA05 | yes | yes | complete | passed | running (job 1503875; 1502968 OOM-killed) | — |
-| ORCA025 | yes | yes | complete | passed | not started (XIOS memory risk; scratch space) | — |
+| ORCA2 | yes | yes | complete | passed | **complete** (job 1502542) | passed (both scripts) |
+| ORCA1 | yes | yes | complete | passed | **complete** (job 1502660) | passed (both scripts) |
+| ORCA05 | yes | yes | complete | passed | **complete** (job 1503915; 1502968 OOM-killed) | passed (both scripts) |
+| ORCA025 | yes | yes | complete | passed | on hold: scratch space (needs ORCA2–ORCA05 downloaded) | — |
 | GLOB16 | yes | yes | not run | — | not run | — |
 
 **v1** (Sep 2026): four members ran the full 228-day period at `rn_Dt = 900 s` under
@@ -100,7 +100,7 @@ Runs once per member; offline forcing steps are shared across all members.
 
 **Produced (v1):** four members × 31 netCDF files = 124 files, 60 GB, each member carrying 3 883
 records across four streams over 2019-03-18 → 2019-11-01. **v2:** same file set, ~2.8× the volume;
-ORCA2 and ORCA1 complete, ORCA05 and ORCA025 in progress. **Remaining:** GLOB16.
+ORCA2, ORCA1 and ORCA05 complete; ORCA025 on hold for scratch space. **Remaining:** GLOB16.
 
 ## The controlled comparison
 
@@ -165,7 +165,8 @@ segment a run.
 > the *job step*: without `--mem`, the `srun` step is given only the per-task default
 > (`ntasks × 8000 MB`, e.g. `mem=144000M` for ORCA05's 18 tasks) and is OOM-killed above it, although
 > the job holds 375 GB. **`srun` must carry `--mem=0`** so the step receives the whole job's memory.
-> Confirm with `sacct -j <job>.0 --format=AllocTRES` → `mem=375G`.
+> Confirm with `sacct -j <job>.0 --format=AllocTRES`. In practice the step receives **`mem=300G`**
+> even with `--mem=0` (job holds 375 GB): **300 GB is the effective step ceiling**.
 
 **Storage.** `/home` 10 GB, backed up. `/scratch/djgway001` 250 GB, **not backed up**.
 
@@ -747,6 +748,12 @@ trimmed, so it carries no information and lengthens every filename.
 every run in that directory, including short validations. Run validations elsewhere or move their
 output aside immediately.
 
+> **Recorded exception (v2 ORCA05).** ORCA05's `namelist_cfg` was hand-edited (`! DIAGNOSTIC`) to
+> `nn_stocklist = 21888` only. This changes the restart point, not the physics or output
+> (`namelist_ice_cfg` and `file_def_nemo-ice.xml` are identical to ORCA1's). ORCA05's
+> `namelist_cfg` is therefore the true record of that run: **do not regenerate ORCA05 before its
+> configuration files are downloaded.**
+
 ### `namelist_cfg`
 
 Built from `cfgs/ORCA2_SAS_ICE/EXPREF/namelist_cfg`. The SAS reference retains 7 blocks and adds 5;
@@ -857,9 +864,9 @@ figure (ORCA2 max 666 vs ~125; ORCA1 Oct 99th percentile 113 vs 57): better-conv
 less in the compact pack, so Δ falls and β rises. The ORCA025 tail above 500 may therefore exceed the
 1–2% estimated; read it from ORCA025's own `beta_evp`.
 
-**Measured cost.** v2 ran 1.56× (ORCA2) and 1.57× (ORCA1) the v1 wall clock, so the rheology was
-~14% of v1 runtime at both. If that share holds, ORCA05 ≈ 3–3.5 h and ORCA025 ≈ 6–8 h (the earlier
-16–20 h estimate assumed 60–80%); it may grow at finer grids.
+**Measured cost.** v2 ran 1.56× (ORCA2), 1.57× (ORCA1) and **1.79× (ORCA05)** the v1 wall clock,
+so the rheology was ~14% of v1 runtime at the two coarsest members and ~20% at ORCA05: **the share
+grows with resolution.** ORCA025 estimate: ≈ 7–9 h (the earlier 16–20 h assumed 60–80%).
 
 **`&namdyn_adv`** — **`ln_adv_Pra=.true.`, `ln_adv_UMx=.false.`** Load-bearing for a resolution study:
 a diffusive scheme would smear the ice edge by an amount depending on grid spacing, manufacturing a
@@ -964,9 +971,11 @@ srun --mpi=pmix --mem=0 --ntasks=$((N+2)) --cpu-bind=none --multi-prog nemo_mpmd
 
 - **`--mem=0` is required (v2 onward).** Without it the step's memory is the per-task default, not the
   job's 375 GB (see the step-level RAM trap above). `setup_production.sh` (backup
-  `setup_production.sh.bak_stepmem`) writes it on both `srun` lines: the dry-run echo and the launch.
+  `setup_production.sh.bak_stepmem`) writes it on both `srun` lines: the dry-run echo (line 297) and
+  the launch (line 308). A `diff` against the backup confirms these are the only changes.
   v1 never hit the limit (peak 43 GB); v2 ORCA05 did (job 1502968: an XIOS server reached 113 GB
-  against a 144 GB step limit during start-up → `OUT_OF_MEMORY`).
+  against a 144 GB step limit during start-up → `OUT_OF_MEMORY`). With `--mem=0` the step receives
+  300 GB.
 - **`--cpu-bind=none` is required, not optional.** Without it the job step's cpuset is scoped to the
   `--ntasks` request and the inherited default binding tries to bind outside it, failing immediately
   with `CPU binding outside of job step allocation`. The job's own allocation is unaffected — `sacct`
@@ -1163,16 +1172,19 @@ fields (~26 in v1 → ~47 in v2 across all streams) and dominates the peak.
 |---|---|---|---|---|---|
 | ORCA2 | 1502542 | 55:50 | 1.56× | 19.7 GB | 1.8 GB |
 | ORCA1 | 1502660 | 1:28:31 | 1.57× | 13.2 GB | 7.1 GB |
-| ORCA05 | 1503875 | pending | | ~110–120 GB expected (XIOS server) | ~43 GB expected |
+| ORCA05 | 1503915 | 3:36:31 | 1.79× | 36.9 GB (task 0, a NEMO rank) | 41 GB |
 
 ORCA05's first attempt (1502968) was OOM-killed at start-up by the step-level RAM trap (113 GB on one
-XIOS server vs a 144 GB step limit); fixed with `srun --mem=0`. **ORCA025 risk:** 40 tasks on ~4× the
-grid, so its XIOS server peak may approach 375 GB even with `--mem=0`. Mitigations if needed: size
-XIOS buffers for memory rather than speed in `iodef.xml` (check names against XIOS3 r2793), or run
-more XIOS servers (changes how `setup_production.sh` writes `nemo_mpmd.conf`).
+XIOS server vs a 144 GB step limit); fixed with `srun --mem=0`. **XIOS is not the steady-state
+memory consumer:** the XIOS server memory reports show 8 KB buffers per client (32 KB in total at
+ORCA2, 64 KB at ORCA1, ~96 KB at ORCA05), and v2 ORCA05 peaked at 36.9 GB on a NEMO rank, close to
+v1's 39 GB. The 113 GB was an artefact of the 144 GB cap or a start-up transient. ORCA025 is expected
+to peak at ~45–60 GB against the 300 GB step ceiling; no XIOS change needed, but watch `sstat` for the
+first 15 minutes.
 
-v2 has been checked with `verify_logs.sh` and a field-level check of all 29 `_icemod` variables;
-`verify_production.py` has not yet been run on v2.
+All three completed v2 members passed `verify_logs.sh` and `verify_production.py`, plus a field-level
+check of the 29 `_icemod` variables (ORCA2, ORCA1; `beta_evp` check not yet run at ORCA05). v2
+restarts were deleted after verification.
 
 ### Output inventory
 
@@ -1512,9 +1524,9 @@ the first stocklist entry under SAS. **Set `ln_rst_list = .false.`** — `restar
   producing zero-byte `.err` files. Documented upstream fix is `transport_protocol = p2p` in
   `iodef.xml` (XIOS3 r2793 has the feature); untested here. Must be resolved first if single-node
   proves insufficient.
-- **Single-node memory is doubtful for v2.** v1 MaxRSS (14 → 14 → 39 → 43 GB) suggested GLOB16 would
-  fit a 375 GB node, but v2's extra output fields drive XIOS server memory (~113 GB on one server at
-  ORCA05) and GLOB16 is 13.3× ORCA025. Expect to need more XIOS servers or memory-sized XIOS buffers;
+- **Single-node memory looks feasible but is unconfirmed.** MaxRSS (v1: 14 → 14 → 39 → 43 GB; v2
+  ORCA05 37 GB) is dominated by NEMO ranks, not XIOS, so v2's extra fields add little. GLOB16 is
+  13.3× ORCA025, well beyond the measured range, against a 300 GB effective step ceiling;
   `srun --mem=0` is mandatory. Record MaxRSS from the first segment before committing to the full
   sequence.
 - **`nn_nevp` is open.** β is roughly 4× ORCA025's, so ~2000 iterations would match ORCA025's

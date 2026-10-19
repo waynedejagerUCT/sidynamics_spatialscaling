@@ -137,7 +137,8 @@ split from the run start (18 Mar 2019), so `_201903-201904` covers 18 Mar – 18
 > **Status:** the local files are **v1** (8 `_icemod` fields, `nn_nevp = 100`).
 > **v2** (29 `_icemod` fields, `nn_nevp = 500`) is being produced on the HPC and
 > held there until scratch is full, then downloaded; where it will sit locally
-> (replacing v1 or alongside) is undecided. GLOB16 output is pending.
+> (replacing v1 or alongside) is undecided, except that ORCA025 v1 is kept as the
+> `nn_nevp = 100` member of the ORCA025 solver test. GLOB16 output is pending.
 
 ### Satellite drift (OSISAF)
 
@@ -169,8 +170,8 @@ Task-level status and blockers are tracked in [`ROADMAP.md`](ROADMAP.md).
 - **Momentum balance:** internal stress, Coriolis, sea-surface tilt and snow mass
   added; no residual estimate needed.
 - **Solver:** adaptive EVP kept; `nn_nevp = 500` for ORCA2–ORCA025 (v1: 100);
-  `rn_relast` is unused under aEVP. Convergence documented per cell by `beta_evp`.
-  No solver test runs.
+  `rn_relast` is unused under aEVP. Convergence documented per cell by `beta_evp`,
+  plus one targeted solver-sensitivity test at ORCA025 (see below).
 - **Velocity grid:** `sivelu`/`sivelv` and the force-balance terms are native
   U/V-point values, labelled as T-point fields in the files.
 - **Ridging diagnostics source fix:** SI3 never wrote the ridging/rafting fields
@@ -181,17 +182,24 @@ Task-level status and blockers are tracked in [`ROADMAP.md`](ROADMAP.md).
 
 **Model runs: still open**
 
-- **v2 production:** ORCA2 and ORCA1 complete and verified (runtime ~1.57× v1);
-  ORCA05 running; ORCA025 not yet started.
-- **ORCA025 XIOS memory:** v2's extra output fields drive XIOS server memory
-  (~110–120 GB expected at ORCA05). ORCA025 may approach the 375 GB node limit;
-  decide from ORCA05's peak whether XIOS buffers or more XIOS servers are needed.
+- **v2 production:** ORCA2, ORCA1 and ORCA05 complete and verified (runtime
+  1.56–1.79× v1, rising with resolution). ORCA025 (est. 7–9 h) is on hold for
+  scratch space.
 - **Storage:** v2 output is ~2.8× v1 (~175 GB uncompressed for ORCA2–ORCA025);
-  compression deferred (5× measured with `nccopy`). Scratch has ~105 GB free, so
-  ORCA025 (~118 GB) needs ORCA2–ORCA05 downloaded and cleared first. Locally,
-  136 GB is free, enough only if v1 is replaced.
+  compression deferred (5× measured with `nccopy`). After clean-up, scratch has
+  ~72 GB free, so ORCA025 (~105–118 GB plus restarts) needs ORCA2–ORCA05 (~50 GB)
+  downloaded and cleared first. Locally,
+  136 GB is free, enough only if v1 is replaced, except ORCA025 v1, which is kept
+  for the solver test. The ORCA025 `nn_nevp = 2000` run adds ~118 GB (full season).
+- **ORCA025 solver-sensitivity test:** ORCA025 is compared at `nn_nevp` = 100
+  (v1), 500 (v2) and 2000 (an extra run, v2 configuration), after ORCA025 at 500
+  completes. `beta_evp` masking alone is weakest for vorticity, because
+  rotation-dominated, low-deformation ice has the highest β. The three settings show
+  whether the numerical contribution is small and shrinking with iteration count, and
+  inform GLOB16's `nn_nevp`. The run period for 2000 (full season or a window) is
+  undecided.
 - **GLOB16:** `nn_nevp` (β ≈ 4× ORCA025; ~2000 iterations for equal convergence),
-  segment driver, memory (now including XIOS), and storage (~1.5 TB uncompressed
+  segment driver, memory (300 GB effective step ceiling), and storage (~1.5 TB uncompressed
   vs a 250 GB scratch quota).
 - **Simulation period:** the hierarchy covers 18 Mar – 31 Oct 2019, whereas the
   WP3.1 reference realisation is the 2022 season. Decide whether the hierarchy
@@ -215,7 +223,8 @@ Task-level status and blockers are tracked in [`ROADMAP.md`](ROADMAP.md).
 - **Convergence masking:** flag or mask cells where `beta_evp` exceeds `nn_nevp`
   before attributing a vorticity or deformation misfit. In-model β is about 2×
   the offline v1 estimate, so the poorly converged tail at ORCA025 may be larger
-  than first estimated.
+  than first estimated. The ORCA025 100/500/2000 test checks what masking can't
+  catch, chiefly rotation-dominated ice.
 
 ## Environment
 
