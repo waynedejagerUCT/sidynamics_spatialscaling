@@ -27,19 +27,35 @@ confined to its own halo, ≥ 2 500 km from any sea ice. Verified empirically �
 **Members.** ORCA2, ORCA1, ORCA05, ORCA025 form a clean ×2 ladder (2° → 1° → 0.5° → 0.25°).
 GLOB16 (1/16°) is a stated-caveat extension member from a different grid family.
 
-**Status (19 September 2026).**
+**Status (19 October 2026).**
 
-| Member | Trimmed | Weights | Production | Verified |
-|---|---|---|---|---|
-| ORCA2 | yes | yes | **complete** | **passed** |
-| ORCA1 | yes | yes | **complete** | **passed** |
-| ORCA05 | yes | yes | **complete** | **passed** |
-| ORCA025 | yes | yes | **complete** | **passed** |
-| GLOB16 | yes | yes | not yet run | — |
+| Member | Trimmed | Weights | v1 production | v1 verified | v2 production | v2 verified |
+|---|---|---|---|---|---|---|
+| ORCA2 | yes | yes | complete | passed | **complete** (job 1502542) | `verify_logs.sh` passed |
+| ORCA1 | yes | yes | complete | passed | **complete** (job 1502660) | `verify_logs.sh` passed |
+| ORCA05 | yes | yes | complete | passed | running (job 1503875; 1502968 OOM-killed) | — |
+| ORCA025 | yes | yes | complete | passed | not started (XIOS memory risk; scratch space) | — |
+| GLOB16 | yes | yes | not run | — | not run | — |
 
-Four members ran the full 228-day period at `rn_Dt = 900 s` under `srun --multi-prog`; output
-transferred to local storage and verified byte-for-byte. GLOB16 requires several departures from the
-common recipe — see [GLOB16](#glob16-special-conditions).
+**v1** (Sep 2026): four members ran the full 228-day period at `rn_Dt = 900 s` under
+`srun --multi-prog`, 8 `_icemod` fields, `nn_nevp = 100`; output transferred to local storage and
+verified byte-for-byte.
+
+**v2 regeneration** (from Oct 2026) reruns the same four members to add what the analysis needs and v1
+lacks. Changes from v1:
+
+- **21 more `_icemod` fields (29 total)** — area tendencies and ridging/rafting (Eq. 1 partition),
+  momentum-balance terms, snow mass, native deformation, rheology state and `beta_evp`
+  (§XIOS output).
+- **`nn_nevp = 500`** (was 100) — aEVP convergence decision (§`namelist_ice_cfg`). The only change
+  affecting the solution, so v2 is not bit-identical with v1.
+- **`MY_SRC/icedyn_rdgrft.F90`** — fixes ridging diagnostics that SI3 never wrote (§Build).
+  Diagnostics only.
+- **`srun --mem=0`** — fixes the job-step memory cap that OOM-killed v2 ORCA05 (§Cluster environment).
+
+Validated by a 72-step ORCA2 run before production. v2 output is ~2.8× v1 and is held on scratch
+until the quota is reached, then downloaded. GLOB16 requires several departures from the common
+recipe — see [GLOB16](#glob16-special-conditions).
 
 ---
 
@@ -82,8 +98,9 @@ Runs once per member; offline forcing steps are shared across all members.
                                          └────────────────────────────────┘
 ```
 
-**Produced:** four members × 31 netCDF files = 124 files, 60 GB, each member carrying 3 883 records
-across four streams over 2019-03-18 → 2019-11-01. **Remaining:** the GLOB16 production run.
+**Produced (v1):** four members × 31 netCDF files = 124 files, 60 GB, each member carrying 3 883
+records across four streams over 2019-03-18 → 2019-11-01. **v2:** same file set, ~2.8× the volume;
+ORCA2 and ORCA1 complete, ORCA05 and ORCA025 in progress. **Remaining:** GLOB16.
 
 ## The controlled comparison
 
@@ -96,12 +113,12 @@ across four streams over 2019-03-18 → 2019-11-01. **Remaining:** the GLOB16 pr
 | Ice initial condition | Same GLORYS file, interpolated to each target at runtime |
 | Run period | 2019-03-18 → 2019-11-01 (`nn_date0=20190318`, `nn_itend=21888`) |
 | Ice timestep | `rDt_ice = 900 s` (`rn_Dt=900`, `nn_fsbc=1`) — ORCA2…ORCA025 |
-| EOS, rheology, advection, ITD | `ln_eos80`, `ln_aEVP`, `rn_ecc`, `ln_adv_Pra`, `jpl`, `nlay_i`, `nlay_s` |
+| EOS, rheology, advection, ITD | `ln_eos80`, `ln_aEVP`, `rn_ecc`, `nn_nevp` (v1: 100, v2: 500), `ln_adv_Pra`, `jpl`, `nlay_i`, `nlay_s` |
 | Lateral BC | `rn_ishlat = 2.` |
 | Output frequency | 3-hourly ice, daily prescribed ocean, monthly scalars |
-| NEMO build | Same `nemo.exe` — cpp keys and component set are grid-independent |
+| NEMO build | Same `nemo.exe` — cpp keys and component set are grid-independent (v2: rebuilt with the `MY_SRC` ridging-diagnostics fix) |
 | Northern wall | 2 rows, applied identically |
-| Launcher | `srun --mpi=pmix --cpu-bind=none --multi-prog` |
+| Launcher | `srun --mpi=pmix --mem=0 --cpu-bind=none --multi-prog` (`--mem=0` from v2) |
 
 ### Necessarily varies with resolution
 
@@ -143,6 +160,12 @@ segment a run.
 > **RAM-sizing trap.** `--ntasks=N` on a 48-core node allocates only `N × 7.8125` GB. Request the
 > **full node** (`--constraint=large`, `--cpus-per-task=1`, omit `--mem`) even when launching fewer
 > ranks. `setup_production.sh` does this; confirm `ReqMem = 375G` in `sacct`.
+
+> **Step-level RAM trap (found 2026-10-18, v2 ORCA05).** The full-node *job* allocation does not reach
+> the *job step*: without `--mem`, the `srun` step is given only the per-task default
+> (`ntasks × 8000 MB`, e.g. `mem=144000M` for ORCA05's 18 tasks) and is OOM-killed above it, although
+> the job holds 375 GB. **`srun` must carry `--mem=0`** so the step receives the whole job's memory.
+> Confirm with `sacct -j <job>.0 --format=AllocTRES` → `mem=375G`.
 
 **Storage.** `/home` 10 GB, backed up. `/scratch/djgway001` 250 GB, **not backed up**.
 
@@ -202,6 +225,16 @@ sed -i '/oasis_codes_id/d' cfgs/SEAICE_DYN_003/EXP00/iodef.xml
 - `key_RK3` — shipped by the SAS reference; `rn_atfp` is unused but read unconditionally
   (`domain.F90:241`), so leave it set.
 - The `oasis_codes_id` removal is required — XIOS3 aborts on that element.
+- **`MY_SRC/icedyn_rdgrft.F90` (v2, 2026-10-18) — ridging diagnostics fix.** In the shipped source,
+  `ice_dyn_rdgrft_init` sets `ll_diag_rdg` from `iom_use('lead_open' | 'rdg_*' | 'rft_*')`. That
+  init runs before the XIOS context definition is closed, so `iom_use` returns `.FALSE.`, the flag
+  stays `.FALSE.` for the whole run and the five fields are never sent (written as all-fill, 0 valid
+  values). The copy sets `ll_diag_rdg = .TRUE.` unconditionally (it also gates allocation of the
+  diagnostic arrays in `ice_dyn_rdgrft_alloc`, so re-evaluating per step is unsafe). Diagnostics only:
+  no physics change. Rebuild with the second `makenemo` line above; **no conda environment may be
+  active** (a stray `nemo_analysis` caused a link failure). Confirmed by the ORCA2 72-step v2
+  validation: all five fields written; `lead_open` is legitimately zero there (filled from `opning`
+  at ridging points, `icedyn_rdgrft.F90:1141`).
 
 Tools, built once:
 
@@ -542,6 +575,9 @@ python3 -u expand_weights.py --verify-only $W/weights_bilin_glorys_orca05_ant40s
 python3 -u expand_weights.py --verify-only $W/weights_bilin_glorys_orca05_ant40s_ice.nc --domain-cfg $D
 ```
 
+The compacted SCRIP originals are kept on disk renamed `*.nc.compacted_BROKEN`; only the expanded
+files are used.
+
 ### Weights verification — what must be checked
 
 The obvious checks are insufficient: a compacted file has four `src` and four `wgt` arrays, all
@@ -574,21 +610,22 @@ the only difference. Achievable because there is no walltime limit.
 | | `rDt_ice = 900 s` |
 |---|---|
 | Steps per inertial period (~13 h at 65°S) | 52 |
-| `Telast = rDt_ice × rn_relast` (0.333) | 300 s |
-| EVP subcycle at `nn_nevp = 100` | 9 s |
+| EVP relaxation (aEVP) | per-cell β, α from `rDt_ice` (`zdtevp = rDt_ice`, `icedyn_rhg_evp.F90:244`); no elastic timescale or sub-timestep |
+| `nn_nevp` (ORCA2–ORCA025) | 500 iterations per `rDt_ice` |
 | `MOD(rday, rDt_ice) = 0` | 96 steps/day — satisfied |
 | `nn_itend`, 228 days | **21 888** |
 
 **Why not 3600 s**, which CFL permits at the coarser members: CFL guarantees stability, not accuracy.
-At 3600 s the inertial period is resolved by only 13 steps and the EVP elastic timescale — set by
-`rDt_ice × rn_relast`, not by anything physical — is 1200 s. Meandering and vorticity are explicit
+At 3600 s the inertial period is resolved by only 13 steps. Meandering and vorticity are explicit
 diagnostics here and both depend on inertial-loop fidelity. 900 s is better physics at every member,
-not merely a device for removing a confound.
+not merely a device for removing a confound. (Under aEVP there is no elastic timescale or EVP
+sub-timestep to set: `rn_relast` is used only by standard EVP, and `nn_nevp` is purely an iteration
+count — see `&namdyn_rhg` below.)
 
 **Fixed forcing cadence does not make the timestep irrelevant.** ERA5 (hourly) and GLORYS (daily) are
 identical files for every member, so a shorter timestep samples the same piecewise-linear interpolant
 more finely rather than admitting new variability. But several timestep-dependent processes are
-internal to SI3 and unaffected by forcing cadence: EVP subcycling and the elastic timescale,
+internal to SI3 and unaffected by forcing cadence: the aEVP relaxation parameters (β ∝ √rDt_ice),
 inertial-motion representation, quadratic-drag response integrated over a linear interpolant, and
 Prather advection error at differing Courant number.
 
@@ -695,8 +732,9 @@ Copies namelists and XMLs from `common/`, substitutes the grid token, weights fi
 **`common/` holds Gate T0 values, and that is correct.** Templates carry `rn_Dt = 3600.`,
 `nn_itend = 72`, `nn_stocklist = 72`, `nn_rhg_chkcvg = 1`. Production values (`RN_DT=900.`,
 `NN_ITEND=21888`, monthly `NN_STOCKLIST`, `chkcvg = 0`) are defined at the top of
-`setup_production.sh` and substituted on generation. **Verify the generated member directory, never
-the template.**
+`setup_production.sh` and substituted on generation. Since v2, `nn_nevp = 500` is set in
+`namelist_ice_cfg.template` itself (not substituted), and the 29-field `_icemod` list lives in
+`common/file_def_nemo-ice.xml`. **Verify the generated member directory, never the template.**
 
 **Rank counts** from the script's `MEMBERS` table: ORCA2 4, ORCA1 8, ORCA05 16, ORCA025 38, GLOB16
 38, plus 2 XIOS ranks each. The generator writes no explicit `jpni`/`jpnj` — automatic decomposition
@@ -780,9 +818,48 @@ thickness distribution.
 **`&namini`** — `nn_iceini_file=1`; `sn_hti/hts/ati` → ice IC + weights **[PER-GRID]**; other slots
 `'NOT USED'`; **pond overrides `rn_apd_ini_s=rn_hpd_ini_s=rn_hld_ini_s=0.0`**; `cn_dir='./'`.
 
-**`&namdyn_rhg`** — `ln_rhg_EVP=.true.`, **`ln_aEVP=.true.`**, `rn_ecc=2.0`, `nn_nevp=100`,
-`rn_relast=0.333`, `rn_creepl=2e-9`, `nn_rhg_chkcvg=0` (set 1 for a short validation run at each new
-resolution).
+**`&namdyn_rhg`** — `ln_rhg_EVP=.true.`, **`ln_aEVP=.true.`**, `rn_ecc=2.0`, **`nn_nevp=500`**
+(ORCA2–ORCA025, identical; v1 used 100; GLOB16 open), `rn_relast=0.333` (**unused**: read only in
+the standard-EVP branch, `icedyn_rhg_evp.F90:236-238`, `IF(.NOT. ln_aEVP)`), `rn_creepl=2e-9`,
+`nn_rhg_chkcvg=0` (set 1 for a short validation run at each new resolution).
+
+**aEVP convergence.** Under aEVP the relaxation parameter is computed per cell each step
+(`icedyn_rhg_evp.F90:446, 468`):
+
+```
+β = MAX(50, π·√(0.5·P/(Δ + rn_creepl) / (e1t·e2t) · rDt_ice / m)),   P = P*·vt_i·exp(−C(1−A))
+```
+
+With H79 strength (P ∝ vt_i) and m ≈ ρᵢ·vt_i, **ice thickness cancels**: β depends only on
+concentration, deformation rate Δ and cell area. The residual after N iterations scales as
+~exp(−N/β), so cells with β ≳ `nn_nevp` are not converged.
+
+Offline estimate from v1 output (`scripts/estimate_beta_evp.py`; Δ on the C-grid from
+`sivelu`/`sivelv`; 3 h mean velocities, no snow/pond mass). Share of ice cells (A > 0.15) with
+β > 100, Sep 2019 (March is similar):
+
+| Member | β > 100 | β > 300 | 99th pct / max |
+|---|---|---|---|
+| ORCA2 | 0.007% | 0% | 50 / 125 |
+| ORCA1 | 0.37% | 0% | 57 / 252 |
+| ORCA05 | 2.65% | 0.27% | 185 / 600 |
+| ORCA025 | 8.07% | 1.60% | 375 / 1137 |
+
+**The unconverged share grows with resolution** (β ∝ 1/√cell area), so a fixed `nn_nevp` would add a
+resolution-dependent numerical error to exactly the diagnostics under study. `nn_nevp = 500` leaves
+~96% of ORCA025 ice cells under ~5% residual; the poorly converged tail (~1–2%) is compact,
+low-deformation ice, so deformation and vorticity extremes are well converged. **Caveat:** that tail
+remains unconverged at ORCA025; it is documented per cell and step by the `beta_evp` output field.
+GLOB16 β is roughly 4× ORCA025's (~2000 iterations for equal convergence); its `nn_nevp` is open.
+
+**The offline estimate is biased low, not high.** In-model v2 `beta_evp` is about 2× the offline
+figure (ORCA2 max 666 vs ~125; ORCA1 Oct 99th percentile 113 vs 57): better-converged v2 ice deforms
+less in the compact pack, so Δ falls and β rises. The ORCA025 tail above 500 may therefore exceed the
+1–2% estimated; read it from ORCA025's own `beta_evp`.
+
+**Measured cost.** v2 ran 1.56× (ORCA2) and 1.57× (ORCA1) the v1 wall clock, so the rheology was
+~14% of v1 runtime at both. If that share holds, ORCA05 ≈ 3–3.5 h and ORCA025 ≈ 6–8 h (the earlier
+16–20 h estimate assumed 60–80%); it may grow at finer grids.
 
 **`&namdyn_adv`** — **`ln_adv_Pra=.true.`, `ln_adv_UMx=.false.`** Load-bearing for a resolution study:
 a diffusive scheme would smear the ice edge by an amount depending on grid spacing, manufacturing a
@@ -799,13 +876,28 @@ rewritten. `field_def_nemo-{oce,ice}.xml` used as shipped.
 
 | ID | Stream | Freq | Fields |
 |---|---|---|---|
-| `file21` | `_icemod` | 3 h | `siconc, sithic, sivelu, sivelv, utau_ai, vtau_ai, utau_oi, vtau_oi` |
+| `file21` | `_icemod` | 3 h | v1 (8): `siconc, sithic, sivelu, sivelv, utau_ai, vtau_ai, utau_oi, vtau_oi`; v2 adds 21 (29 total): `afxdyn, afxthd, rdg_loss, rdg_gain, rft_loss, rft_gain, lead_open, intstrx, intstry, corstrx, corstry, dssh_dx, dssh_dy, snwmass, icediv, iceshe, icedlt, icestr, normstr, sheastr, beta_evp` |
 | `file22` | `_SBC_scalar` | monthly | 10 global ice-budget scalars |
 | `file11` | `_grid_T` | daily | `ssu_m, ssv_m, sst_m, sss_m, ssh_m` |
 | `file12` | `_sbcwind` | 3 h | `utau_oce, vtau_oce, wspd` |
 
 All other file groups emptied. **A `field_ref` pointing at a variable that never receives data fails
-silently** — the reference ships ~15 that do not exist under SAS.
+silently** — the reference ships ~15 that do not exist under SAS. Every v2 field was confirmed to
+receive data in the ORCA2 validation (the ridging/rafting group only after the `MY_SRC` fix).
+
+**v2 field notes.**
+- **Eq. 1 partition:** advective = `afxdyn` − (`rdg_gain` + `rft_gain` − `rdg_loss` − `rft_loss`);
+  non-advective = `afxthd` + the same net ridging/rafting term, so ridging sits with the
+  non-advective terms as the analysis requires.
+- **`lead_open`** is filled from `opning` at ridging points only (`icedyn_rdgrft.F90:1141`) and was
+  zero over ice in every month checked at ORCA2 and ORCA1. Kept for identical output across members;
+  uninformative.
+- **`beta_evp`** is 50 over open water and > 50 in ice; compare with `nn_nevp` to flag poorly
+  converged cells.
+- **`uice_cvg`** (solver convergence) is deliberately **not** output: it is written only when
+  `nn_rhg_chkcvg > 0`, which is off in production.
+- Ice + snow mass for the momentum balance = ρᵢ·`siconc`·`sithic` + `snwmass` (no ice-mass field
+  exists).
 
 - **`split_freq="1mo"` on every entry.** XIOS closes a file at each month boundary and closed files
   survive a kill, bounding loss from any interruption; also keeps filenames month-scoped, the
@@ -818,8 +910,10 @@ silently** — the reference ships ~15 that do not exist under SAS.
   Nansen turning angle is defined against **absolute** 10 m wind, which `utau_oce`/`vtau_oce`
   direction gives. The magnitude ratio needs wind *speed*, unrecoverable from `utau_ai` without
   inverting a stability-dependent bulk drag.
-- **No output compression is possible.** XIOS3 raises a hard `ERROR` for compression in parallel mode
-  (`onetcdf4.cpp:527-529`), despite `compression_level` being a declared attribute.
+- **No output compression is possible in XIOS.** XIOS3 raises a hard `ERROR` for compression in
+  parallel mode (`onetcdf4.cpp:527-529`), despite `compression_level` being a declared attribute.
+  Offline `nccopy -d 1 -s` gives ~5× (measured on the v2 ORCA2 validation file); deferred unless
+  storage requires it.
 - **`_SBC_scalar` integrates the Southern Hemisphere only**, since that is the whole domain — no
   hemisphere masking needed.
 
@@ -832,16 +926,27 @@ SEAICE_DYN_003_ORCA025_3h_icemod_201905-201906.nc
 ```
 
 **The stream token precedes the period**, period is `YYYYMM-YYYYMM` at monthly split granularity. All
-four identifiers present, so no renaming is required. `split_freq_format` controls date granularity;
+four identifiers present, so no renaming is required. **The monthly split counts from the run start,
+not calendar months:** `_201903-201904` covers 18 Mar – 18 Apr (248 three-hourly records) and the last
+file 18 Oct – 1 Nov (112). `split_freq_format` controls date granularity;
 confirm any change against real output rather than assuming token syntax.
 
 ## Running production
 
 ### Segmentation is a storage decision, and only a storage decision
 
-No walltime limit, so scratch quota is the only reason to segment. Measured volumes are 0.65 / 2.6 /
-16 / 41 GB — a combined 60 GB against a 250 GB quota. **All four ORCA members run end-to-end in a
-single submission each.** Only GLOB16 requires segmentation.
+No walltime limit, so scratch quota is the only reason to segment. **All four ORCA members run
+end-to-end in a single submission each.** Only GLOB16 requires segmentation.
+
+| | ORCA2 | ORCA1 | ORCA05 | ORCA025 | Total |
+|---|---|---|---|---|---|
+| v1 output | 0.65 GB | 2.6 GB | 16 GB | 41 GB | 60 GB |
+| v2 output | 1.8 GB | 7.1 GB | ~43 GB | ~118 GB | ~170 GB |
+
+The 250 GB quota also holds inputs (119 GB) and `VALIDATION/` (17 GB), leaving ~105 GB for output
+(Oct 2026). v2 members therefore cannot all sit on scratch at once: ORCA025 needs ORCA2–ORCA05
+downloaded and cleared first (or `VALIDATION/` removed). `quota -s` reports 0 and is unusable;
+measure with `du -sh /scratch/djgway001`.
 
 ### Launch mechanism: `srun --multi-prog`
 
@@ -854,9 +959,14 @@ N-(N+1)   ./xios_server.exe
 ```
 
 ```bash
-srun --mpi=pmix --ntasks=$((N+2)) --cpu-bind=none --multi-prog nemo_mpmd.conf
+srun --mpi=pmix --mem=0 --ntasks=$((N+2)) --cpu-bind=none --multi-prog nemo_mpmd.conf
 ```
 
+- **`--mem=0` is required (v2 onward).** Without it the step's memory is the per-task default, not the
+  job's 375 GB (see the step-level RAM trap above). `setup_production.sh` (backup
+  `setup_production.sh.bak_stepmem`) writes it on both `srun` lines: the dry-run echo and the launch.
+  v1 never hit the limit (peak 43 GB); v2 ORCA05 did (job 1502968: an XIOS server reached 113 GB
+  against a 144 GB step limit during start-up → `OUT_OF_MEMORY`).
 - **`--cpu-bind=none` is required, not optional.** Without it the job step's cpuset is scoped to the
   `--ntasks` request and the inherited default binding tries to bind outside it, failing immediately
   with `CPU binding outside of job step allocation`. The job's own allocation is unaffected — `sacct`
@@ -887,7 +997,7 @@ cd /scratch/djgway001/NEMO/experiments/SEAICE_DYN_003/<GRID>
 | `rn_Dt` | `900.` (ORCA members) |
 | weights filenames | this member's, with the `_ant40s` token |
 | `split_freq` | `1mo` on all four `file_def` entries |
-| launcher line | `srun --mpi=pmix --ntasks=<N+2> --cpu-bind=none --multi-prog nemo_mpmd.conf` |
+| launcher line | `srun --mpi=pmix --mem=0 --ntasks=<N+2> --cpu-bind=none --multi-prog nemo_mpmd.conf` |
 | dangling symlinks | none |
 
 ```bash
@@ -914,7 +1024,8 @@ error is the `dia_mlr_init` deadlock (§GLOB16) — kill rather than wait.
 
 - **MPI rank count identical across all segments of a member** — restarts are per-rank. May differ
   between members.
-- **Request the full node** — `--constraint=large`, `--cpus-per-task=1`, omit `--mem`.
+- **Request the full node** — `--constraint=large`, `--cpus-per-task=1`, omit `--mem` on the job.
+- **Give the step the node's memory** — `srun --mem=0`; otherwise the step is capped at `ntasks × 8000 MB`.
 - **XIOS server mode** (`using_server=true`), floor of 2 servers.
 - **`split_freq="1mo"` on every `file_def` entry**, every member.
 - **No output compression.**
@@ -1023,6 +1134,8 @@ done
 
 ### Run statistics — `srun` launcher, `rn_Dt = 900`
 
+**v1** (8 `_icemod` fields, `nn_nevp = 100`):
+
 | Member | Ranks | Per-rank `jpi`×`jpj` | Elapsed | s/step | MaxRSS | Output |
 |---|---|---|---|---|---|---|
 | ORCA2 | 4 | 49 × 48 | 35:53 | 0.098 | 14.3 GB | 653 MB |
@@ -1037,19 +1150,37 @@ Automatic decomposition gave 4×1 (ORCA2), 8×1 (ORCA1), 5×4 minus 4 land-only 
 land-only (ORCA025). No explicit `jpni`/`jpnj` needed.
 
 - **Memory scales with grid size under this launcher** — 14 → 14 → 39 → 43 GB across a 64× range in
-  grid points, comfortably inside a single 375 GB node. Makes GLOB16 single-node operation plausible
-  but unconfirmed.
+  grid points, comfortably inside a single 375 GB node (v1). Makes GLOB16 single-node operation
+  plausible but unconfirmed.
 - **Wall clock is super-linear in points per rank** (1 980 → 3 960 → 11 507 → 13 415 points/rank
   giving 0.098 → 0.155 → 0.332 → 0.640 s/step) — per-step overhead dominates at small sizes.
   Initialisation costs minutes, a fixed addition to every figure.
 
+**v2 (29 `_icemod` fields, `nn_nevp = 500`).** XIOS server memory grows with the number of output
+fields (~26 in v1 → ~47 in v2 across all streams) and dominates the peak.
+
+| Member | Job | Elapsed | vs v1 | MaxRSS (step) | Output |
+|---|---|---|---|---|---|
+| ORCA2 | 1502542 | 55:50 | 1.56× | 19.7 GB | 1.8 GB |
+| ORCA1 | 1502660 | 1:28:31 | 1.57× | 13.2 GB | 7.1 GB |
+| ORCA05 | 1503875 | pending | | ~110–120 GB expected (XIOS server) | ~43 GB expected |
+
+ORCA05's first attempt (1502968) was OOM-killed at start-up by the step-level RAM trap (113 GB on one
+XIOS server vs a 144 GB step limit); fixed with `srun --mem=0`. **ORCA025 risk:** 40 tasks on ~4× the
+grid, so its XIOS server peak may approach 375 GB even with `--mem=0`. Mitigations if needed: size
+XIOS buffers for memory rather than speed in `iodef.xml` (check names against XIOS3 r2793), or run
+more XIOS servers (changes how `setup_production.sh` writes `nemo_mpmd.conf`).
+
+v2 has been checked with `verify_logs.sh` and a field-level check of all 29 `_icemod` variables;
+`verify_production.py` has not yet been run on v2.
+
 ### Output inventory
 
-31 files per member: 8 × `_icemod`, 8 × `_sbcwind`, 8 × `_grid_T`, 7 × `_SBC_scalar`. The scalar
-stream has 7 because the run starts 18 March, so there is no complete March month. Records:
-1 824 + 1 824 + 228 + 7 = **3 883**.
+31 files per member (v1 and v2): 8 × `_icemod`, 8 × `_sbcwind`, 8 × `_grid_T`, 7 × `_SBC_scalar`.
+The scalar stream has 7 because the run starts 18 March, so there is no complete March month.
+Records: 1 824 + 1 824 + 228 + 7 = **3 883**.
 
-| Member | Total bytes (31 files) |
+| Member | Total bytes, v1 (31 files) |
 |---|---|
 | ORCA2 | 677 333 511 |
 | ORCA1 | 2 697 144 623 |
@@ -1057,6 +1188,8 @@ stream has 7 because the run starts 18 March, so there is no complete March mont
 | ORCA025 | 43 337 903 919 |
 
 ### Conservation diagnostics — the primary cross-member result
+
+*v1 figures. v2 differs only through `nn_nevp`; recompute from v2 once all members are complete.*
 
 `ibgvol_tot` (km³) and `ibgarea_tot` (km²), units confirmed from file metadata, integrated over the
 Southern Hemisphere domain. Mean thickness is their ratio.
@@ -1127,6 +1260,9 @@ for G in ORCA2 ORCA1 ORCA05 ORCA025; do
   scp "$R:$E/$G/layout.dat"                $G/
 done
 ```
+
+v1 was transferred this way. For v2, also copy `output.namelist.*` and the `MY_SRC` patch as
+provenance; where v2 sits locally (replacing v1 or alongside) is undecided.
 
 **The trimmed `domain_cfg.nc` must accompany every member's output** — neither stream carries cell
 areas, so it is required for any area-weighted quantity, and it must be the *trimmed* file.
@@ -1272,7 +1408,7 @@ Per member: `~/Data/NEMO/SEAICE_DYN_003/<GRID>/` — 31 output files plus the **
 
 | Stream | Freq | Records | Variables |
 |---|---|---|---|
-| `_icemod` | 3 h | 1 824 | `siconc`, `sithic`, `sivelu`, `sivelv`, `utau_ai`, `vtau_ai`, `utau_oi`, `vtau_oi` |
+| `_icemod` | 3 h | 1 824 | v1: `siconc`, `sithic`, `sivelu`, `sivelv`, `utau_ai`, `vtau_ai`, `utau_oi`, `vtau_oi`; v2: + 21 fields (§XIOS output) |
 | `_sbcwind` | 3 h | 1 824 | `utau_oce`, `vtau_oce`, `wspd` |
 | `_grid_T` | 1 d | 228 | `ssu_m`, `ssv_m`, `sst_m`, `sss_m`, `ssh_m` |
 | `_SBC_scalar` | 1 mo | 7 | 10 ice-budget scalars (**Southern Hemisphere only**) |
@@ -1298,8 +1434,9 @@ Per member: `~/Data/NEMO/SEAICE_DYN_003/<GRID>/` — 31 output files plus the **
 - Magnitude ratio: `|u_ice| / wspd`.
 
 **Cross-member analysis.** Velocities are on each member's own curvilinear grid in its own i/j frame.
-Comparing drift requires regridding to a common target or working in geographic coordinates via
-`nav_lon`/`nav_lat`. Seeding positions must be identical across members for trajectory comparison to
+Comparing drift requires regridding to a common target or working in geographic coordinates — via
+`glamu/gphiu` and `glamv/gphiv` for velocities and force terms (not the T-point `nav_lon`/`nav_lat`
+the files carry), and rotating i/j components to east/north. Seeding positions must be identical across members for trajectory comparison to
 mean anything — **seeding in geographic coordinates and letting each member interpolate is the
 cleaner choice.**
 
@@ -1338,46 +1475,22 @@ way to quantify the caveat; not needed for the ORCA members themselves, which sh
 
 ### 2. Storage — segmentation is mandatory
 
-Output scales linearly with grid points, verified across four members (0.65 GB at 7 920 points →
-41 GB at 509 760). GLOB16 at 6 791 040 points projects to **~545 GB at `rn_Dt = 900`**; the timestep
-does not change this because output frequency is in model time.
-
-**That is 2.2× the entire 250 GB quota.** No scheduling arrangement makes it fit. GLOB16 requires an
-archive cycle: run a segment, verify, transfer off the cluster, delete locally, continue.
-
-Recommended structure is a **segment loop inside a single allocation**, rather than N submissions or
-`afterok` chaining:
-
-```bash
-for seg in $(seq $START $NSEG); do
-    rewrite_namelist_for_segment $seg
-    srun --mpi=pmix --ntasks=$((NCOMPUTE+2)) --cpu-bind=none --multi-prog nemo_mpmd.conf
-
-    ./verify_segment.sh $seg || { echo "segment $seg FAILED -- stopping"; break; }
-
-    used=$(du -s --block-size=G /scratch/djgway001 | cut -f1)
-    if [ "$used" -gt "$THRESHOLD" ]; then
-        echo "approaching quota at segment $seg ($used GB) -- stopping cleanly"
-        break
-    fi
-done
-```
-
-Three properties worth having: one queue wait covers many segments; verification runs between
-segments inside the job, as a real inspection of `time.step`, the `AAAAAAAA` marker, restart count
-and `ocean.output` rather than an exit code; and the stop is graceful at a chosen threshold. Avoid
-reacting to a full filesystem — disk-full mid-write is an ambiguous failure, wastes the compute since
-the last restart, and affects everything else on the filesystem.
-
-`THRESHOLD` must leave room for the current segment's output plus two restarts, set from *measured*
-free space after cleaning. **The four ORCA members' output (60 GB) must be cleared before GLOB16
-starts.**
+- **Volume:** output scales linearly with grid points (v1: 0.65 GB at 7 920 points → 41 GB at
+  509 760). GLOB16 (6 791 040 points) projects to ~545 GB for v1 fields and **~1.5 TB for v2**,
+  independent of timestep (output frequency is in model time); ~300–500 GB if compressed offline.
+- **Against the quota:** far beyond the 250 GB scratch quota, of which inputs and `VALIDATION/`
+  already take ~136 GB. No scheduling arrangement makes it fit.
+- **Consequence:** GLOB16 must run in segments with an archive cycle — run a segment, verify,
+  transfer off the cluster, delete, continue — stopping gracefully at a measured free-space threshold
+  rather than at a full filesystem. Each segment needs room for its output plus two restarts
+  (§3). All ORCA output must be cleared from scratch first.
+- **Undecided:** the segment driver and where GLOB16 output is stored.
 
 ### 3. Restarts — `ln_rst_list` must be turned off
 
-The segment loop resumes from the previous segment's restart, and `ln_rst_list = .true.` writes only
+Each segment resumes from the previous segment's restart, and `ln_rst_list = .true.` writes only
 the first stocklist entry under SAS. **Set `ln_rst_list = .false.`** — `restart.F90:87` then sets
-`nitrst = nitend`, writing exactly one restart at each segment end, which is what the loop consumes.
+`nitrst = nitend`, writing exactly one restart at each segment end, which is what the next segment consumes.
 
 - **MPI rank count identical across all segments** — restarts are per-rank.
 - **`nn_it000` must be continuous.** Under `nn_rstctl = 2` NEMO checks against the restart and aborts
@@ -1388,7 +1501,7 @@ the first stocklist entry under SAS. **Set `ln_rst_list = .false.`** — `restar
   within ~1% of the end of segment 1, not back near a from-rest value, with record centring exactly
   adjacent and no gap or overlap.
 - Restart volume at GLOB16 is substantial (~49 GB per point, scaling from measured members, dominated
-  by the Prather moments) and must be counted in `THRESHOLD`.
+  by the Prather moments) and must be counted in the free-space threshold.
 
 ### 4. Launch mechanics may need modification
 
@@ -1399,9 +1512,13 @@ the first stocklist entry under SAS. **Set `ln_rst_list = .false.`** — `restar
   producing zero-byte `.err` files. Documented upstream fix is `transport_protocol = p2p` in
   `iodef.xml` (XIOS3 r2793 has the feature); untested here. Must be resolved first if single-node
   proves insufficient.
-- **Single-node memory looks feasible but is unconfirmed.** Naive extrapolation of measured MaxRSS
-  (14 → 14 → 39 → 43 GB) puts GLOB16 inside a 375 GB node, but 13.3× ORCA025 is well beyond the
-  measured range. Record MaxRSS from the first segment before committing to the full sequence.
+- **Single-node memory is doubtful for v2.** v1 MaxRSS (14 → 14 → 39 → 43 GB) suggested GLOB16 would
+  fit a 375 GB node, but v2's extra output fields drive XIOS server memory (~113 GB on one server at
+  ORCA05) and GLOB16 is 13.3× ORCA025. Expect to need more XIOS servers or memory-sized XIOS buffers;
+  `srun --mem=0` is mandatory. Record MaxRSS from the first segment before committing to the full
+  sequence.
+- **`nn_nevp` is open.** β is roughly 4× ORCA025's, so ~2000 iterations would match ORCA025's
+  convergence; the template's 500 is a placeholder until decided.
 - **Set an explicit `--time`.** With no partition cap and a known deadlock mode, an unbounded job that
   hangs consumes the allocation indefinitely and blocks other work under `GrpTRES cpu=200`. Roughly
   2× the estimate as a dead-man switch; costs nothing on normal completion.
@@ -1467,7 +1584,7 @@ To be carried into any write-up. Each is argued in full in the section named.
   for an ocean-stress diagnostic.
 - **Domain integrals are Southern-Hemisphere quantities**, not comparable with any global-domain
   figure.
-
-**Reference configuration:** BIOPERIANT12 (1/12° Southern Ocean NEMO+SI3; Chang/CSIR &
-Monteiro/Stellenbosch, GMD 2025; Zenodo) — itself a regional Southern Ocean configuration and a useful
-comparison for GLOB16 in particular. NEMO 5.0 SAS reference: `cfgs/ORCA2_SAS_ICE`.
+- **aEVP is not fully converged everywhere** (§`namelist_ice_cfg`). At `nn_nevp = 500` a small,
+  resolution-dependent tail of compact low-deformation ice (largest at ORCA025) has β > `nn_nevp`;
+  documented per cell by `beta_evp`, which should be used to mask or flag cells before attributing a
+  deformation or vorticity misfit.

@@ -80,7 +80,7 @@ interpreted.
 
 - Curl of air–ice and ocean–ice stress
 - Ocean surface current vorticity
-- Internal-stress force (not yet in model output; see Outstanding tasks)
+- Internal-stress, Coriolis and sea-surface tilt forces (v2 output)
 
 *Synoptic events*
 
@@ -98,11 +98,13 @@ resolved or is lost across the hierarchy.
 .
 ├── preprocessing/   Scripts for reading, regridding, and preparing NEMO and
 │                     satellite velocity fields ahead of Lagrangian simulation.
-├── scripts/          NEMO domain configuration utilities:
+├── scripts/          NEMO configuration utilities:
 │   ├── audit_domain_cfg.py   Read-only audit of domain_cfg files for inclusion
 │   │                         in the SEAICE_DYN_003 resolution hierarchy.
-│   └── trim_domain_cfg.py    Trims a domain_cfg file to a southern band below a
-│                             target latitude (for the standalone SI3 setup).
+│   ├── trim_domain_cfg.py    Trims a domain_cfg file to a southern band below a
+│   │                         target latitude (for the standalone SI3 setup).
+│   └── estimate_beta_evp.py  Offline estimate of the aEVP relaxation parameter
+│                             from model output, to check nn_nevp convergence.
 ├── plots/            Figures and plotting scripts for diagnostics and results.
 └── misc/             Supporting scripts, notes, and other project material.
 ```
@@ -129,9 +131,13 @@ NEMO output is expected locally under:
 
 Each resolution subdirectory is populated post-run with that configuration's NEMO
 output (`_icemod`, `_grid_T`, `_sbcwind` files) and its own domain file
-(`domain_cfg_<RES>_*.nc`, e.g. `domain_cfg_ORCA025_ANT40S.nc`).
+(`domain_cfg_<RES>_*.nc`, e.g. `domain_cfg_ORCA025_ANT40S.nc`). Monthly files are
+split from the run start (18 Mar 2019), so `_201903-201904` covers 18 Mar – 18 Apr.
 
-> **Status:** GLOB16 resolution member output is pending. To be included in Kinematics analysis later
+> **Status:** the local files are **v1** (8 `_icemod` fields, `nn_nevp = 100`).
+> **v2** (29 `_icemod` fields, `nn_nevp = 500`) is being produced on the HPC and
+> held there until scratch is full, then downloaded; where it will sit locally
+> (replacing v1 or alongside) is undecided. GLOB16 output is pending.
 
 ### Satellite drift (OSISAF)
 
@@ -152,36 +158,64 @@ Southern Hemisphere OSISAF sea-ice drift products are expected locally under:
 Task-level status and blockers are tracked in [`ROADMAP.md`](ROADMAP.md).
 
 > **These must be considered before the GLOB16 production run.** Some can only be
-> fixed by changing the model output configuration, and adding outputs afterwards
-> means running the simulations again.
+> fixed by changing the model configuration, and changing it afterwards means
+> running the simulations again.
 
-**Model output (requires changes to the run configuration)**
+**Resolved for v2 (configured in `common/` on the HPC; validated on ORCA2)**
 
-- **No ice-area tendency diagnostics.** `_icemod` holds only `siconc`, `sithic`,
-  `sivelu`/`sivelv` and the air–ice and ocean–ice stresses. The WP2.3 partition
-  needs SI3's own dynamic and thermodynamic area tendencies, with ridging grouped
-  with the non-advective terms. These outputs need enabling.
-- **No internal-stress term.** Step 2 of the vorticity attribution sequence needs
-  the internal-stress force. Without it, the term must be estimated as the
-  residual of the momentum balance, which adds error. Output it directly.
-- **Simulation period.** The current hierarchy covers Mar–Nov 2019, whereas the
+- **Ice-area tendencies and ridging:** `afxdyn`, `afxthd`, `rdg_*`, `rft_*` and
+  `lead_open` added to `_icemod`, enough to split the model's area change as Eq. 1
+  requires, with ridging on the non-advective side.
+- **Momentum balance:** internal stress, Coriolis, sea-surface tilt and snow mass
+  added; no residual estimate needed.
+- **Solver:** adaptive EVP kept; `nn_nevp = 500` for ORCA2–ORCA025 (v1: 100);
+  `rn_relast` is unused under aEVP. Convergence documented per cell by `beta_evp`.
+  No solver test runs.
+- **Velocity grid:** `sivelu`/`sivelv` and the force-balance terms are native
+  U/V-point values, labelled as T-point fields in the files.
+- **Ridging diagnostics source fix:** SI3 never wrote the ridging/rafting fields
+  (flag set before XIOS was ready); fixed in `MY_SRC/icedyn_rdgrft.F90`
+  (diagnostics only) and `nemo.exe` rebuilt.
+- **Job-step memory:** `srun` now carries `--mem=0`; without it the step was capped
+  at `ntasks × 8000 MB` and v2 ORCA05 was OOM-killed at start-up.
+
+**Model runs: still open**
+
+- **v2 production:** ORCA2 and ORCA1 complete and verified (runtime ~1.57× v1);
+  ORCA05 running; ORCA025 not yet started.
+- **ORCA025 XIOS memory:** v2's extra output fields drive XIOS server memory
+  (~110–120 GB expected at ORCA05). ORCA025 may approach the 375 GB node limit;
+  decide from ORCA05's peak whether XIOS buffers or more XIOS servers are needed.
+- **Storage:** v2 output is ~2.8× v1 (~175 GB uncompressed for ORCA2–ORCA025);
+  compression deferred (5× measured with `nccopy`). Scratch has ~105 GB free, so
+  ORCA025 (~118 GB) needs ORCA2–ORCA05 downloaded and cleared first. Locally,
+  136 GB is free, enough only if v1 is replaced.
+- **GLOB16:** `nn_nevp` (β ≈ 4× ORCA025; ~2000 iterations for equal convergence),
+  segment driver, memory (now including XIOS), and storage (~1.5 TB uncompressed
+  vs a 250 GB scratch quota).
+- **Simulation period:** the hierarchy covers 18 Mar – 31 Oct 2019, whereas the
   WP3.1 reference realisation is the 2022 season. Decide whether the hierarchy
-  is also run for 2022.
-- **Numerical control experiments.** Decide the solver settings to vary at fixed
-  resolution (WP2.1) before production runs.
+  also runs 2022.
 
-**Satellite data**
+**Observational data**
 
-- **Swath coverage.** OSISAF S2S, the primary comparison product (WP2.2), is
-  currently held only for 13–31 Jul 2019. Decide whether to acquire more.
-- **Retrieval uncertainty.** Per-retrieval uncertainties (RO1 inputs) must be
+- **Swath coverage:** OSISAF S2S, the primary comparison product (WP2.2), is held
+  only for 13–31 Jul 2019. Decide whether to acquire more.
+- **Concentration product:** none held locally; needed for the observed Eq. 1
+  partition and the state comparison.
+- **Buoys:** AWI 2019 buoys are held; check their coverage against the model period.
+- **Retrieval uncertainty:** per-retrieval uncertainties (RO1 inputs) must be
   carried through to every derived diagnostic, since gradients amplify error.
 
 **Diagnostics**
 
-- **Time matching.** Model trajectories (3-hourly) must be subsampled to the
+- **Time matching:** model trajectories (3-hourly) must be subsampled to the
   satellite timestep before comparing time-sensitive metrics such as the
   meandering index.
+- **Convergence masking:** flag or mask cells where `beta_evp` exceeds `nn_nevp`
+  before attributing a vorticity or deformation misfit. In-model β is about 2×
+  the offline v1 estimate, so the poorly converged tail at ORCA025 may be larger
+  than first estimated.
 
 ## Environment
 
