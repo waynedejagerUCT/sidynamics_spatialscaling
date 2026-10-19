@@ -221,9 +221,9 @@ Task-level status and blockers are tracked in [`ROADMAP.md`](ROADMAP.md).
   satellite timestep before comparing time-sensitive metrics such as the
   meandering index.
 - **Convergence masking:** flag or mask cells where `beta_evp` exceeds `nn_nevp`
-  before attributing a vorticity or deformation misfit. In-model β is about 2×
-  the offline v1 estimate, so the poorly converged tail at ORCA025 may be larger
-  than first estimated. The ORCA025 100/500/2000 test checks what masking can't
+  before attributing a vorticity or deformation misfit. ORCA05 is effectively
+  fully converged at 500 (≤ 0.02% of ice cells above it); ORCA025, the finest
+  member, is expected to have the largest tail. The ORCA025 100/500/2000 test checks what masking can't
   catch, chiefly rotation-dominated ice.
 
 ## Environment

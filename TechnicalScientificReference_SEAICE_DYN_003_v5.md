@@ -859,10 +859,27 @@ low-deformation ice, so deformation and vorticity extremes are well converged. *
 remains unconverged at ORCA025; it is documented per cell and step by the `beta_evp` output field.
 GLOB16 β is roughly 4× ORCA025's (~2000 iterations for equal convergence); its `nn_nevp` is open.
 
-**The offline estimate is biased low, not high.** In-model v2 `beta_evp` is about 2× the offline
-figure (ORCA2 max 666 vs ~125; ORCA1 Oct 99th percentile 113 vs 57): better-converged v2 ice deforms
-less in the compact pack, so Δ falls and β rises. The ORCA025 tail above 500 may therefore exceed the
-1–2% estimated; read it from ORCA025's own `beta_evp`.
+**In-model `beta_evp` versus the offline estimate.** At the coarse members in-model β exceeded the
+offline figure (ORCA2 max 666 vs ~125; ORCA1 Oct 99th percentile 113 vs 57), plausibly because
+better-converged v2 ice deforms less in the compact pack. At **ORCA05 the two agree** (Sep: in-model
+99th 190 / max 630 vs offline 185 / 600), so the offline estimate is not consistently biased in
+either direction. Read the ORCA025 tail from its own `beta_evp`.
+
+**ORCA05 v2 `beta_evp`** (ice cells, `siconc > 0.15`, all records per monthly file):
+
+| File (18th → 18th) | β > 500 | 99th pct | max |
+|---|---|---|---|
+| Mar–Apr | 0.005% | 188 | 563 |
+| Apr–May | 0.003% | 122 | 552 |
+| May–Jun | 0.000% | 113 | 512 |
+| Jun–Jul | 0.000% | 141 | 507 |
+| Jul–Aug | 0.000% | 110 | 484 |
+| Aug–Sep | 0.000% | 173 | 530 |
+| Sep–Oct | 0.001% | 190 | 630 |
+| Oct–Nov (to 1 Nov) | 0.020% | 276 | 664 |
+
+**ORCA05 is effectively fully converged at `nn_nevp = 500`** (≤ 0.02% of ice cells above 500 in any
+month). The tail is largest in the shoulder seasons and grows into late October.
 
 **Measured cost.** v2 ran 1.56× (ORCA2), 1.57× (ORCA1) and **1.79× (ORCA05)** the v1 wall clock,
 so the rheology was ~14% of v1 runtime at the two coarsest members and ~20% at ORCA05: **the share
@@ -1183,7 +1200,7 @@ to peak at ~45–60 GB against the 300 GB step ceiling; no XIOS change needed, b
 first 15 minutes.
 
 All three completed v2 members passed `verify_logs.sh` and `verify_production.py`, plus a field-level
-check of the 29 `_icemod` variables (ORCA2, ORCA1; `beta_evp` check not yet run at ORCA05). v2
+check of the 29 `_icemod` variables and `beta_evp` at each. v2
 restarts were deleted after verification.
 
 ### Output inventory
