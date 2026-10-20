@@ -2,7 +2,7 @@
 
 Living document. Update task status as work completes. Scientific goals: [ProjectOutline.md](ProjectOutline.md). Model setup: [TechnicalScientificReference_SEAICE_DYN_003_v5.md](TechnicalScientificReference_SEAICE_DYN_003_v5.md).
 
-**Last updated:** 2026-10-19
+**Last updated:** 2026-10-20
 
 **Status key:** ✅ done · 🟡 in progress · ⬜ not started (unblocked) · ⛔ blocked (see *Blocked by*)
 
@@ -17,8 +17,8 @@ Living document. Update task status as work completes. Scientific goals: [Projec
 |---|---|---|---|---|
 | A | Model reruns (WP2.1) | 🟡 | Yes | — |
 | B | Observational data holdings | 🟡 | Yes | — |
-| C | Shared foundations | ⬜ | Yes | — |
-| D | Velocity-gradient diagnostics | ⬜ | Partly | C |
+| C | Shared foundations | 🟡 | Yes | — |
+| D | Velocity-gradient diagnostics | 🟡 | Partly | C |
 | E | Scaling with averaging scale | ⛔ | No | D |
 | F | Vorticity attribution | ⛔ | No | D; A (v2) for momentum terms; A17 (ORCA025 100/500/2000) for the numerical test |
 | G | Lagrangian analysis | ⬜ | Partly | C |
@@ -68,7 +68,7 @@ v1 output was removed from the HPC on 2026-10-16. Local copies are kept, and run
 | A15 | `srun` step memory: step got only `ntasks × 8000 MB` (ORCA05: 144 GB) despite full-node job; an XIOS server needed 113 GB (v2 has ~47 output fields vs ~26) → `OUT_OF_MEMORY` (job 1502968). Fix: `srun --mpi=pmix --mem=0 …` on both `srun` lines of `setup_production.sh` (backup `.bak_stepmem`); ORCA05 cleaned, regenerated, resubmitted (job 1503875). Confirmed by ORCA05 job 1503915 (completed). Note the step receives `mem=300G` even with `--mem=0` (job holds 375 GB): **300 GB is the effective step ceiling**. Recorded in technical reference | ✅ | — |
 | A16 | ORCA025 XIOS memory risk: **low.** XIOS server memory reports show 8 KB buffers per client (32 KB total at ORCA2, 64 KB ORCA1, ~96 KB ORCA05), so XIOS is not the steady-state consumer; the 113 GB in job 1502968 was an artefact of the 144 GB step cap or a start-up transient. ORCA05 v2 peaked at 36.9 GB on a NEMO rank. Expected ORCA025 peak ~45–60 GB vs the 300 GB step ceiling. No XIOS change; watch `sstat` for the first 15 min of ORCA025 | ✅ | — |
 | A14 | Ridging diagnostics fix: `ll_diag_rdg` set in `ice_dyn_rdgrft_init` via `iom_use()` before XIOS closedef → always `.FALSE.`. `MY_SRC/icedyn_rdgrft.F90` sets it `.TRUE.` (diagnostics only); `nemo.exe` rebuilt 2026-10-18 12:25. Confirmed in A3 run 2; recorded in technical reference build section | ✅ | — |
-| A17 | **Three-setting solver-sensitivity test at ORCA025 (WP2.1 numerical control), committed 2026-10-19.** Compare ORCA025 at `nn_nevp` = **100** (v1, held locally), **500** (v2 production, A6) and **2000** (new run, v2 configuration otherwise identical to the 500 run). Three settings show the convergence trend: is the 500→2000 change smaller than the 100→500 change, and does it shrink at a rate that fits ~exp(−N/β)? One pair alone can't show that. **Compare:** vorticity, deformation, the vorticity/deformation ratio, drift, concentration and thickness, binned by β. Use in-model `beta_evp` for 500 and 2000, and the offline estimate (`scripts/estimate_beta_evp.py`) for 100, since v1 has no `beta_evp` field. Comparisons that include 100 are limited to the 8 v1 fields. **Why:** `beta_evp` masking alone is weakest for vorticity. β rises as Δ falls, so rotation-dominated, low-deformation ice is the least converged, and masking it would remove the cases the vorticity test needs. Masking also misses non-local effects of unconverged stress on later ice state. This test measures the numerical sensitivity directly at the finest completed member, and informs GLOB16 `nn_nevp` (A11). **Preconditions:** (i) keep ORCA025 v1 locally even if other v1 members are replaced (A4); (ii) confirm from the run records (`SEAICE_DYN_003_runrecords.tgz` vs v2 namelists) that v1 and v2 ORCA025 differ physically only in `nn_nevp`. The v2 changes to output fields, the ridging-diagnostic source fix and `srun --mem=0` should not affect the solution. **Steps:** 100 vs 500 can start once ORCA025 v2 at 500 is downloaded; the 2000 run starts after ORCA025 at 500 production completes (A6). **Cost of the 2000 run (unmeasured):** rheology ≈ 20% of v1 runtime per 100 iterations at ORCA05 (14% at ORCA2/ORCA1) → ~18–24 h if ORCA025 at 500 takes 7–9 h; storage ~118 GB for a full season (A4). **Open:** 2000 run over the full season (18 Mar – 31 Oct) or a shorter window (e.g. July, to overlap the swath data); if a window, all three settings are compared over it | ⛔ | A6 (ORCA025 at 500), A4 |
+| A17 | **Three-setting solver-sensitivity test at ORCA025 (WP2.1 numerical control), committed 2026-10-19.** Compare ORCA025 at `nn_nevp` = **100** (v1, held locally), **500** (v2 production, A6) and **2000** (new run, v2 configuration otherwise identical to the 500 run). Three settings show the convergence trend: is the 500→2000 change smaller than the 100→500 change, and does it shrink at a rate that fits ~exp(−N/β)? One pair alone can't show that. **Compare:** vorticity, deformation, the vorticity/deformation ratio, drift, concentration and thickness, binned by β. Use in-model `beta_evp` for 500 and 2000, and the offline estimate (`scripts/estimate_beta_evp.py`) for 100, since v1 has no `beta_evp` field. Comparisons that include 100 are limited to the 8 v1 fields. **Why:** `beta_evp` masking alone is weakest for vorticity. β rises as Δ falls, so rotation-dominated, low-deformation ice is the least converged, and masking it would remove the cases the vorticity test needs. Masking also misses non-local effects of unconverged stress on later ice state. This test measures the numerical sensitivity directly at the finest completed member, and informs GLOB16 `nn_nevp` (A11). **Preconditions:** (i) keep ORCA025 v1 locally even if other v1 members are replaced (A4); (ii) confirm from the run records (`SEAICE_DYN_003_runrecords.tgz` vs v2 namelists) that v1 and v2 ORCA025 differ physically only in `nn_nevp`. The v2 changes to output fields, the ridging-diagnostic source fix and `srun --mem=0` should not affect the solution. **Steps:** 100 vs 500 can start once ORCA025 v2 at 500 is downloaded; the 2000 run starts after ORCA025 at 500 production completes (A6). **Cost of the 2000 run (unmeasured):** rheology ≈ 20% of v1 runtime per 100 iterations at ORCA05 (14% at ORCA2/ORCA1) → ~18–24 h if ORCA025 at 500 takes 7–9 h; storage ~118 GB for a full season (A4). **Open:** 2000 run over the full season (18 Mar – 31 Oct) or a shorter window (e.g. July, to overlap the swath data); if a window, all three settings are compared over it. F0 shows offline ORCA025 convergence collapsing from mid-October, so any window should include October | ⛔ | A6 (ORCA025 at 500), A4 |
 
 ---
 
@@ -88,11 +88,11 @@ v1 output was removed from the HPC on 2026-10-16. Local copies are kept, and run
 
 ## C. Shared foundations
 
-**Status:** ⬜ · **Runs on:** v1 data · local
+**Status:** 🟡 · **Runs on:** v1 data · local
 
 | ID | Task | Status | Blocked by |
 |---|---|---|---|
-| C1 | NEMO reader (note: monthly files split from the run start, e.g. `_201903-201904` = 18 Mar–18 Apr, 248 records; not calendar months): C-grid positions (`glamu/v/f`, `gphiu/v/f`), masks, metrics from `domain_cfg_<RES>_ANT40S.nc` | ⬜ | — |
+| C1 | NEMO reader (note: monthly files split from the run start, e.g. `_201903-201904` = 18 Mar–18 Apr, 248 records; not calendar months): C-grid positions (`glamu/v/f`, `gphiu/v/f`), masks, metrics from `domain_cfg_<RES>_ANT40S.nc`. **Done (2026-10-20, `scripts/kinematics.py`):** metrics and T/F masks (`load_grid`), one-record loader with `sivelu`/`sivelv` as native U/V (`load_record`), and halo detection (`interior_cols`). ORCA05 carries two duplicate zonal halo columns (722 = 720 + 2); ORCA2, ORCA1 and ORCA025 are exactly periodic. Record selection by `time_counter_bounds` exists only in `plots/plot_beta_vortdef_hierarchy.py` (`find_record`). **Remaining:** a shared multi-file time-series reader, and U/V positions for G1 | 🟡 | — |
 | C2 | OSISAF 455 and swath readers (grids, time windows, uncertainty, flags) | ⬜ | — |
 | C3 | Time matching: integrate 3 h model velocity over each satellite displacement window (24 h / swath pair) | ⬜ | C1, C2 |
 | C4 | Regridding and coarsening to common effective scale (explicit scale parameter) | ⬜ | C1, C2 |
@@ -102,12 +102,12 @@ v1 output was removed from the HPC on 2026-10-16. Local copies are kept, and run
 
 ## D. Velocity-gradient diagnostics (divergence, shear, total deformation, vorticity)
 
-**Status:** ⬜ · **Runs on:** v1 data (D1–D5); v2 data (D6) · local
+**Status:** 🟡 · **Runs on:** v1 data (D1–D5); v2 data (D6) · local
 
 | ID | Task | Status | Blocked by |
 |---|---|---|---|
-| D1 | C-grid operators: divergence (T), vorticity (F), shear, total deformation | ⬜ | C1 |
-| D2 | Synthetic-field tests (solid-body rotation, pure divergence) on trimmed ORCA grids | ⬜ | D1 |
+| D1 | C-grid operators: divergence (T), vorticity (F), shear, total deformation. **Implemented (2026-10-20, `scripts/kinematics.py`):** divergence and tension at T; shear and ζ at F (ζ in circulation form with `e1u`, `e2v`, `e1f`, `e2f`), both averaged to T as the mean of the square (signed ζ averaging cancelled grid-scale sign changes and biased the ratio low); total deformation √(div² + ten² + shear²); \|ζ\|/total deformation (`rotation_ratio`). The rheology Δ (1/e² scaling) stays in `estimate_beta_evp.py`. **Open:** `fmask = 0` on land F-points imposes free slip, so coast-adjacent ratios are biased low; compare with SI3's `rn_ishlat` treatment in D2 | 🟡 | — |
+| D2 | Synthetic-field tests (solid-body rotation, pure divergence) on trimmed ORCA grids. Also check: coastal boundary treatment (D1 open item), the ORCA05 halo seam, and whether grid-scale speckle in the ORCA05/ORCA025 pack ratio is physical or 2Δx noise | ⬜ | — (D1 implemented) |
 | D3 | First complete case: ORCA025 vs OSISAF 455, Mar–Oct 2019, at common scale | ⬜ | D2, C3–C5 |
 | D4 | Extend to all members; vorticity/deformation ratio; significance masks | ⬜ | D3 |
 | D5 | Swath comparison (Jul 2019 window) | ⬜ | D4, B2 |
@@ -132,6 +132,7 @@ v1 output was removed from the HPC on 2026-10-16. Local copies are kept, and run
 
 | ID | Task | Status | Blocked by |
 |---|---|---|---|
+| F0 | **v1 preview of F4 (no observations).** Offline β and \|ζ\|/total deformation across ORCA2–ORCA025. Outputs: `plots/plot_beta_vortdef_hierarchy.py` (8-panel map, 2019-09-15 12:00–15:00) and `plots/plot_beta_rotation_timeseries.py` (every 3 h record, 18 Mar – 31 Oct; cache `~/Data/intermediate/SEAICE_DYN_003/beta_rotation_ts_offline.csv`). Season means, ORCA2/1/05/025: % ice with β ≤ 100 = 100.0 / 99.7 / 97.8 / 92.8; % rotation-dominated (ratio > 1, total deformation ≥ 1e-8 s⁻¹) = 32.5 / 37.6 / 42.5 / 45.4. ORCA025 convergence falls from mid-October to ~65% (ORCA05 ~86%), as rotation dominance rises in every member. Rotation-dominated, low-deformation ice sits where β is highest, supporting A17. Offline β runs ~2× low against in-model β, so these shares are optimistic. Caveat: `estimate_beta_evp.py` statistics for ORCA05 include the two halo columns (behaviour kept unchanged); the plot scripts exclude them | ✅ | — |
 | F1 | Step 1: locate vorticity misfits beyond retrieval uncertainty | ⛔ | D4 |
 | F2 | Step 2a: test against curl of air–ice and ocean–ice stress, and ocean-current vorticity (v1 fields) | ⛔ | F1 |
 | F3 | Step 2b: test against internal stress, Coriolis and tilt (`intstrx`, `corstrx`, `dssh_dx`) | ⛔ | F1, A6 |
