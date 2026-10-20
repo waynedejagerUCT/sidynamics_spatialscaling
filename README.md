@@ -98,14 +98,25 @@ resolved or is lost across the hierarchy.
 .
 ├── preprocessing/   Scripts for reading, regridding, and preparing NEMO and
 │                     satellite velocity fields ahead of Lagrangian simulation.
-├── scripts/          NEMO configuration utilities:
+├── scripts/          NEMO configuration utilities and shared analysis code:
 │   ├── audit_domain_cfg.py   Read-only audit of domain_cfg files for inclusion
 │   │                         in the SEAICE_DYN_003 resolution hierarchy.
 │   ├── trim_domain_cfg.py    Trims a domain_cfg file to a southern band below a
 │   │                         target latitude (for the standalone SI3 setup).
-│   └── estimate_beta_evp.py  Offline estimate of the aEVP relaxation parameter
-│                             from model output, to check nn_nevp convergence.
-├── plots/            Figures and plotting scripts for diagnostics and results.
+│   ├── estimate_beta_evp.py  Offline estimate of the aEVP relaxation parameter
+│   │                         from model output, to check nn_nevp convergence.
+│   │                         Also importable: beta_offline, and beta_from to
+│   │                         switch between offline β and NEMO's beta_evp (v2).
+│   └── kinematics.py         Shared C-grid code: domain_cfg loading, strain
+│                             rates, vorticity (ζ² averaged F→T), |ζ|/total
+│                             deformation, halo handling, ice/deformation thresholds.
+├── plots/            Figures and plotting scripts for diagnostics and results:
+│   ├── plot_beta_vortdef_hierarchy.py    8-panel map (ORCA2–ORCA025) of β and
+│   │                                     |ζ|/total deformation at one 3 h record.
+│   └── plot_beta_rotation_timeseries.py  Season time series of % ice converged
+│                                         (β ≤ nn_nevp) and % rotation-dominated;
+│                                         per-record results cached as CSV under
+│                                         ~/Data/intermediate/SEAICE_DYN_003/.
 └── misc/             Supporting scripts, notes, and other project material.
 ```
 
