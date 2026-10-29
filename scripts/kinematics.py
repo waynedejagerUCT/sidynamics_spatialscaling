@@ -3,7 +3,9 @@ sivelu/sivelv are native U/V-point values, although the files label them as T-po
 import glob
 import numpy as np, xarray as xr
 
-DATA_ROOT = "/home/waynedj/Data/NEMO/SEAICE_DYN_003"
+DATA_ROOTS = {"v1": "/home/waynedj/Data/NEMO/SEAICE_DYN_003_v1",    # nn_nevp = 100, 8 _icemod fields
+              "v2": "/home/waynedj/Data/NEMO/SEAICE_DYN_003_v2"}    # nn_nevp = 500, 29 _icemod fields
+DATA_ROOT = DATA_ROOTS["v1"]       # default; members not held locally are skipped by the plot scripts
 ICE_MIN = 0.15                     # siconc threshold for ice cells
 DEF_FLOOR = 1e-8                   # s-1; rotation ratio not evaluated below this total deformation
 
@@ -23,6 +25,10 @@ def load_grid(member, root=DATA_ROOT):
     g["e1e2t"] = g["e1t"] * g["e2t"]
     g["dom"] = dom
     return g
+
+def has_output(member, root=DATA_ROOT):
+    """True if <root>/<member>/ holds any _3h_icemod files."""
+    return bool(glob.glob(f"{root}/{member}/*_3h_icemod_*.nc"))
 
 def interior_cols(g):
     """T-column slice without duplicate zonal halo columns (ORCA05 carries two; the other trimmed grids none)."""

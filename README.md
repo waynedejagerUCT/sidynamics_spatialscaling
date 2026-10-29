@@ -129,26 +129,36 @@ is excluded in `.gitignore`).
 
 ### NEMO
 
-NEMO output is expected locally under:
+NEMO output is held locally by data version:
 
 ```
-~/Data/NEMO/SEAICE_DYN_003/
-├── ORCA2/
-├── ORCA1/
-├── ORCA05/
-├── ORCA025/
-└── GLOB16/
+~/Data/NEMO/
+├── SEAICE_DYN_003_v1/            v1: 8 _icemod fields, nn_nevp = 100
+│   ├── ORCA025/                  only v1 member still held (ORCA025 solver test)
+│   ├── ORCA2/ ORCA1/ ORCA05/     empty: moved to an external HDD on 2026-10-28
+│   └── SEAICE_DYN_003_runrecords.tgz
+├── SEAICE_DYN_003_v2/            v2: 29 _icemod fields, nn_nevp = 500
+│   ├── ORCA2/ ORCA1/ ORCA05/     output + run records, MD5-verified 2026-10-29
+│   └── v2_md5_<RES>.txt          HPC-made MD5 lists used for the check
+└── hpc_offload/                  inputs moved off HPC scratch (local-only copies)
+    ├── GLOB16_ANT40S/            restore to scratch before the GLOB16 run
+    ├── ORCA05_ANT40S/            restore before any ORCA05 rerun
+    └── domain_cfgs/              as-received domain_cfg_*.nc (re-trimming only)
 ```
 
-Each resolution subdirectory is populated post-run with that configuration's NEMO
-output (`_icemod`, `_grid_T`, `_sbcwind` files) and its own domain file
-(`domain_cfg_<RES>_*.nc`, e.g. `domain_cfg_ORCA025_ANT40S.nc`). Monthly files are
-split from the run start (18 Mar 2019), so `_201903-201904` covers 18 Mar – 18 Apr.
+Each member directory holds that configuration's NEMO output (`_icemod`,
+`_grid_T`, `_sbcwind` files) and its own domain file
+(`domain_cfg_<RES>_ANT40S.nc`). v2 members also hold their run records
+(namelists, XMLs, `ocean.output`, logs, timing files, `VERIFY_PRODUCTION_<RES>.txt`,
+`PROVENANCE.md`). Monthly files are split from the run start (18 Mar 2019), so
+`_201903-201904` covers 18 Mar – 18 Apr. The old path `~/Data/NEMO/SEAICE_DYN_003/`
+no longer exists; scripts select a version through `DATA_ROOTS` in
+`scripts/kinematics.py`.
 
-> **Status:** the local files are **v1** (8 `_icemod` fields, `nn_nevp = 100`).
-> **v2** (29 `_icemod` fields, `nn_nevp = 500`) is being produced on the HPC and
-> held there until scratch is full, then downloaded; where it will sit locally
-> (replacing v1 or alongside) is undecided, except that ORCA025 v1 is kept as the
+> **Status (2026-10-29):** v2 ORCA2, ORCA1 and ORCA05 are held locally and
+> MD5-verified. v2 ORCA025 is running on the HPC (job 1541973); local storage
+> (about 93 GB free, against ~113 GB of output) will be reassessed once it
+> completes. v1 ORCA2–ORCA05 are on an external HDD; v1 ORCA025 stays local as the
 > `nn_nevp = 100` member of the ORCA025 solver test. GLOB16 output is pending.
 
 ### Satellite drift (OSISAF)
@@ -193,21 +203,25 @@ Task-level status and blockers are tracked in [`ROADMAP.md`](ROADMAP.md).
 
 **Model runs: still open**
 
-- **v2 production:** ORCA2, ORCA1 and ORCA05 complete and verified (runtime
-  1.56–1.79× v1, rising with resolution). ORCA025 (est. 7–9 h) is on hold for
-  scratch space.
-- **Storage:** v2 output is ~2.8× v1 (~175 GB uncompressed for ORCA2–ORCA025);
-  compression deferred (5× measured with `nccopy`). After clean-up, scratch has
-  ~72 GB free, so ORCA025 (~105–118 GB plus restarts) needs ORCA2–ORCA05 (~50 GB)
-  downloaded and cleared first. Locally,
-  136 GB is free, enough only if v1 is replaced, except ORCA025 v1, which is kept
-  for the solver test. The ORCA025 `nn_nevp = 2000` run adds ~118 GB (full season).
+- **v2 production:** ORCA2, ORCA1 and ORCA05 complete, verified and downloaded
+  (MD5-checked; runtime 1.56–1.79× v1, rising with resolution). ORCA025 was
+  submitted on 2026-10-29 (job 1541973; est. 7–9 h); after it finishes, run
+  `verify_logs.sh` (saved with `tee`) and `verify_production.py`, then download
+  with an MD5 check.
+- **Storage:** v2 output is ~2.8× v1; compression deferred (5× measured with
+  `nccopy`). HPC scratch was cleared on 2026-10-29 (115 of 250 GB used, ~135 GB
+  free), so ORCA025 (~113 GB plus ~4 GB restarts) fits. Inputs moved off scratch
+  are held only locally in `~/Data/NEMO/hpc_offload/` and must be restored before
+  the GLOB16 run or any ORCA05 rerun. Locally ~93 GB is free against ORCA025's
+  ~113 GB; to be reassessed once the run completes. The ORCA025 `nn_nevp = 2000` run adds ~118 GB (full season). Transfers
+  use `djgway001@hex.uct.ac.za` at ~4.4 MB/s (~20 min per 5 GB).
 - **ORCA025 solver-sensitivity test:** ORCA025 is compared at `nn_nevp` = 100
   (v1), 500 (v2) and 2000 (an extra run, v2 configuration), after ORCA025 at 500
   completes. `beta_evp` masking alone is weakest for vorticity, because
   rotation-dominated, low-deformation ice has the highest β. The three settings show
   whether the numerical contribution is small and shrinking with iteration count, and
-  inform GLOB16's `nn_nevp`. The run period for 2000 (full season or a window) is
+  inform GLOB16's `nn_nevp`. v1 and v2 ORCA025 namelists differ only in `nn_nevp`
+  (checked 2026-10-29). The run period for 2000 (full season or a window) is
   undecided.
 - **GLOB16:** `nn_nevp` (β ≈ 4× ORCA025; ~2000 iterations for equal convergence),
   segment driver, memory (300 GB effective step ceiling), and storage (~1.5 TB uncompressed

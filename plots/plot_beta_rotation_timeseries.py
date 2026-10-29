@@ -16,13 +16,13 @@ from matplotlib.transforms import blended_transform_factory
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(HERE, "..", "scripts"))
-from kinematics import DATA_ROOT, ICE_MIN, DEF_FLOOR, load_grid, interior_cols, load_record, rotation_ratio
+from kinematics import DATA_ROOTS, ICE_MIN, DEF_FLOOR, load_grid, interior_cols, load_record, rotation_ratio, has_output
 from estimate_beta_evp import beta_from
 
 CONV_DIVISOR = 1.0                 # converged: beta <= nn_nevp / CONV_DIVISOR (residual ~ exp(-CONV_DIVISOR))
 SOURCE = "offline"                 # "offline" (v1, beta from fields) or "model" (v2, NEMO beta_evp)
-SOURCES = {"offline": {"nevp": 100, "label": "v1, nn_nevp = 100, offline β"},
-           "model":   {"nevp": 500, "label": "v2, nn_nevp = 500, NEMO beta_evp"}}
+SOURCES = {"offline": {"nevp": 100, "version": "v1", "label": "v1, nn_nevp = 100, offline β"},
+           "model":   {"nevp": 500, "version": "v2", "label": "v2, nn_nevp = 500, NEMO beta_evp"}}
 WEIGHT = "count"                   # "count" (cells) or "area" (e1t*e2t)
 MEMBERS = ["ORCA2", "ORCA1", "ORCA05", "ORCA025"]
 CACHE_DIR = os.path.expanduser("~/Data/intermediate/SEAICE_DYN_003")
@@ -68,16 +68,23 @@ def compute_member(member, root, source, nevp):
 
 
 def load_or_compute(root, source, recompute):
-    """Re-read the cache when its parameters match; otherwise compute the missing or stale members."""
+    """Re-read the cache when its parameters match; otherwise compute the missing or stale members.
+    Members with no output under `root` keep their cached rows (if valid), so a recompute never drops them."""
     nevp = SOURCES[source]["nevp"]
     params = dict(source=source, nevp=nevp, conv_divisor=CONV_DIVISOR, def_floor=DEF_FLOOR, ice_min=ICE_MIN)
     path = os.path.join(CACHE_DIR, f"beta_rotation_ts_{source}.csv")
-    old = pd.read_csv(path, parse_dates=["time"]) if os.path.exists(path) and not recompute else pd.DataFrame()
+    old = pd.read_csv(path, parse_dates=["time"]) if os.path.exists(path) else pd.DataFrame()
     parts = []
     for m in MEMBERS:
         sub = old[old.member == m] if len(old) else old
-        if len(sub) and all(np.isclose(sub[k], v).all() if isinstance(v, float) else (sub[k] == v).all()
-                            for k, v in params.items()):
+        valid = len(sub) and all(np.isclose(sub[k], v).all() if isinstance(v, float) else (sub[k] == v).all()
+                                 for k, v in params.items())
+        if not has_output(m, root):
+            print(f"{m}: no output under {root}; " + ("using cached rows" if valid else "skipped"))
+            if valid:
+                parts.append(sub)
+            continue
+        if valid and not recompute:
             parts.append(sub)
             continue
         t0 = time.time()
@@ -109,12 +116,13 @@ def main():
     p = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     p.add_argument("--source", choices=tuple(SOURCES), default=SOURCE)
     p.add_argument("--weight", choices=("count", "area"), default=WEIGHT)
-    p.add_argument("--data-root", default=DATA_ROOT)
-    p.add_argument("--recompute", action="store_true", help="ignore the cache and recompute every member")
+    p.add_argument("--data-root", default=None, help="override the data root implied by --source")
+    p.add_argument("--recompute", action="store_true", help="recompute every member whose output is held locally")
     p.add_argument("--out-dir", default=HERE)
     args = p.parse_args()
     nevp, label = SOURCES[args.source]["nevp"], SOURCES[args.source]["label"]
-    df = load_or_compute(args.data_root, args.source, args.recompute)
+    df = load_or_compute(args.data_root or DATA_ROOTS[SOURCES[args.source]["version"]], args.source, args.recompute)
+    present = [m for m in MEMBERS if (df.member == m).any()]
 
     fig, axes = plt.subplots(2, 1, figsize=(13, 8.6), sharex=True)
     fig.subplots_adjust(left=0.085, right=0.89, top=0.86, bottom=0.17, hspace=0.12)
@@ -129,7 +137,7 @@ def main():
         for _, s, _ in SEASONS[1:]:
             ax.axvline(np.datetime64(s), color=MUTED, lw=0.6, ls=(0, (3, 3)), zorder=1)
         ends = []
-        for m in MEMBERS:
+        for m in present:
             d = df[df.member == m].sort_values("time")
             daily = d[col].rolling(ROLL, center=True, min_periods=ROLL).mean()
             ax.plot(d.time, d[col], color=COLORS[m], lw=0.5, alpha=0.35, zorder=2)
@@ -157,7 +165,7 @@ def main():
     axes[1].xaxis.set_major_locator(mdates.MonthLocator())
     axes[1].xaxis.set_major_formatter(mdates.DateFormatter("%b"))
 
-    fig.legend(handles=[Line2D([], [], color=COLORS[m], lw=2.0, label=m) for m in MEMBERS]
+    fig.legend(handles=[Line2D([], [], color=COLORS[m], lw=2.0, label=m) for m in present]
                + [Line2D([], [], color=MUTED, lw=0.5, alpha=0.6, label="3 h record"),
                   Line2D([], [], color=MUTED, lw=2.0, label="daily (8-record) centred mean")],
                loc="upper right", bbox_to_anchor=(0.89, 0.955), ncol=6, frameon=False, fontsize=9.5)

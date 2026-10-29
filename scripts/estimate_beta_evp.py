@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """Offline estimate of aEVP beta from v1 output, to test whether nn_nevp suffices.
 beta formula: icedyn_rhg_evp.F90:446,468 (NEMO 5.0), with zdtevp = rDt_ice (line 244).
-Usage: python estimate_beta_evp.py ORCA025 201908-201909
+Usage: python estimate_beta_evp.py ORCA025 201908-201909 [v1|v2]   (data version, default v1)
 Upward-biased (3 h mean velocities -> smaller Delta; no snow mass), so a conservative test.
 Importable: delta, beta_offline and beta_from are shared with plots/; grid operators live in kinematics.py."""
 import glob, os, sys
 import numpy as np, xarray as xr
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from kinematics import DATA_ROOT, load_grid, strain_components   # C-grid operators (shared)
+from kinematics import DATA_ROOT, DATA_ROOTS, load_grid, strain_components   # C-grid operators (shared)
 
 RHOI = 917.0                       # kg/m3            # confirmed (phycst.F90)
 PSTAR, CRHG = 2.0e4, 20.0          # H79 strength     # confirmed
@@ -38,8 +38,9 @@ def beta_from(source, ds, t, a, h, u, v, g):
 
 if __name__ == "__main__":
     member, period = sys.argv[1], sys.argv[2]
-    g = load_grid(member)
-    ds = xr.open_dataset(glob.glob(f"{DATA_ROOT}/{member}/*_3h_icemod_{period}.nc")[0])
+    root = DATA_ROOTS[sys.argv[3]] if len(sys.argv) > 3 else DATA_ROOT
+    g = load_grid(member, root)
+    ds = xr.open_dataset(glob.glob(f"{root}/{member}/*_3h_icemod_{period}.nc")[0])
     vals = []
     for t in range(ds.sizes["time_counter"]):
         a = ds.siconc[t].values.astype("f8")

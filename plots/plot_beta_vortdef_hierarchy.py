@@ -18,12 +18,13 @@ import cartopy.crs as ccrs
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(HERE, "..", "scripts"))
-from kinematics import DATA_ROOT, ICE_MIN, DEF_FLOOR, load_grid, interior_cols, load_record, rotation_ratio
+from kinematics import DATA_ROOTS, ICE_MIN, DEF_FLOOR, load_grid, interior_cols, load_record, rotation_ratio, has_output
 from estimate_beta_evp import beta_from
 
 TIME = "2019-09-15T12:00"          # target time; the 3 h record whose interval contains it is used
 BETA_SOURCE = "offline"            # "offline" (v1: from siconc/sithic/velocities) or "model" (v2: _icemod beta_evp)
-DATA_LABEL = "v1, nn_nevp = 100"
+VERSION = "v1"                     # data version: "v1" (nn_nevp = 100) or "v2" (nn_nevp = 500)
+VERSION_LABELS = {"v1": "v1, nn_nevp = 100", "v2": "v2, nn_nevp = 500"}
 MEMBERS = ["ORCA2", "ORCA1", "ORCA05", "ORCA025"]
 BETA_LIM, BETA_LINES = (50, 1000), (100, 500)   # v1 and v2 nn_nevp
 RATIO_LIM = (0.1, 10)
@@ -103,15 +104,23 @@ def main():
     p = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     p.add_argument("--time", default=TIME, help="target time, e.g. 2019-09-15T12:00")
     p.add_argument("--beta-source", choices=("offline", "model"), default=BETA_SOURCE)
-    p.add_argument("--label", default=DATA_LABEL, help="data version label used in row 1 and the title")
-    p.add_argument("--data-root", default=DATA_ROOT)
+    p.add_argument("--version", choices=tuple(DATA_ROOTS), default=VERSION, help="data version (sets root and label)")
+    p.add_argument("--label", default=None, help="override the data version label used in row 1 and the title")
+    p.add_argument("--data-root", default=None, help="override the data root for --version")
     p.add_argument("--deform-floor", type=float, default=DEF_FLOOR, help="s-1")
     p.add_argument("--out-dir", default=HERE)
     args = p.parse_args()
+    args.data_root = args.data_root or DATA_ROOTS[args.version]
+    args.label = args.label or VERSION_LABELS[args.version]
     when = np.datetime64(args.time)
 
-    recs = {m: find_record(m, when, args.data_root) for m in MEMBERS}
-    bounds, centre = recs[MEMBERS[0]][2], recs[MEMBERS[0]][3]
+    recs = {m: find_record(m, when, args.data_root) for m in MEMBERS if has_output(m, args.data_root)}
+    if not recs:
+        raise SystemExit(f"no member output under {args.data_root}")
+    for m in MEMBERS:
+        if m not in recs:
+            print(f"{m}: no output under {args.data_root}; panel left empty")
+    bounds, centre = next(iter(recs.values()))[2:4]
     if any(r[3] != centre for r in recs.values()):
         raise SystemExit("record times differ between members")
     t0, t1 = (str(x)[:16].replace("T", " ") for x in bounds)
@@ -121,6 +130,14 @@ def main():
     beta_norm, ratio_norm = LogNorm(*BETA_LIM), LogNorm(*RATIO_LIM)
 
     for k, m in enumerate(MEMBERS):
+        if m not in recs:
+            for row in (0, 1):
+                style_map(axes[row, k])
+                axes[row, k].set_facecolor("#ffffff")
+                axes[row, k].text(0.5, 0.5, "not held locally", transform=axes[row, k].transAxes,
+                                  ha="center", va="center", fontsize=10, color=INK2)
+            axes[0, k].set_title(m, fontsize=13, color=INK, pad=6)
+            continue
         g, ice, beta, ratio, total_def = member_fields(m, recs[m][:2], args.data_root, args.beta_source)
         xf, yf, xt, yt, sl = mesh(g)
         ice_s, beta_s, ratio_s, def_s = ice[sl], beta[sl], ratio[sl], total_def[sl]
@@ -191,7 +208,8 @@ def main():
     fig.text(0.045, 0.035, caption, fontsize=8.5, color=INK2, va="bottom", ha="left", linespacing=1.5)
 
     stamp = str(centre)[:16].replace("-", "").replace(":", "")
-    out = os.path.join(args.out_dir, f"beta_vortdef_{args.beta_source}_{stamp}.png")
+    os.makedirs(args.out_dir, exist_ok=True)
+    out = os.path.join(args.out_dir, f"beta_vortdef_{args.version}_{args.beta_source}_{stamp}.png")
     fig.savefig(out, dpi=200, facecolor="#ffffff")
     print(out)
 
