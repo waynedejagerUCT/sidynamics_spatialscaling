@@ -27,14 +27,14 @@ confined to its own halo, ≥ 2 500 km from any sea ice. Verified empirically �
 **Members.** ORCA2, ORCA1, ORCA05, ORCA025 form a clean ×2 ladder (2° → 1° → 0.5° → 0.25°).
 GLOB16 (1/16°) is a stated-caveat extension member from a different grid family.
 
-**Status (30 October 2026).**
+**Status (2 November 2026).**
 
 | Member | Trimmed | Weights | v1 production | v1 verified | v2 production | v2 verified |
 |---|---|---|---|---|---|---|
 | ORCA2 | yes | yes | complete | passed | **complete** (job 1502542) | passed (both scripts); downloaded, MD5-verified; on external HDD |
 | ORCA1 | yes | yes | complete | passed | **complete** (job 1502660) | passed (both scripts); downloaded, MD5-verified; on external HDD |
 | ORCA05 | yes | **lost 30 Oct** (rebuild before any rerun) | complete | passed | **complete** (job 1503915; 1502968 OOM-killed) | passed (both scripts); downloaded, MD5-verified; on external HDD |
-| ORCA025 | yes | yes | complete | passed | **complete** (job 1541973) | passed (both scripts); downloaded, MD5-verified |
+| ORCA025 | yes | yes | complete | passed | **complete** (job 1541973) | passed (both scripts); downloaded, MD5-verified; on external HDD |
 | GLOB16 | **lost 30 Oct** (rebuild) | **lost 30 Oct** (rebuild) | not run | — | not run | — |
 
 **v1** (Sep 2026): four members ran the full 228-day period at `rn_Dt = 900 s` under
@@ -58,13 +58,16 @@ For ORCA025 this was confirmed at namelist level (29 Oct): with comments and whi
 v1 and v2 `namelist_cfg` files are identical and `namelist_ice_cfg` differs only in `nn_nevp`
 (100 → 500), and both ran on the same 38 × (107 × 122) decomposition. A third ORCA025 run at
 `nn_nevp = 2000`, otherwise identical to v2, is planned as a solver-sensitivity control
-(100 / 500 / 2000; §Run statistics). It runs as `ORCA025_NEVP2000` (job 1544646, submitted
-30 Oct): the third setting of that test, not a new data version.
+(100 / 500 / 2000; §Run statistics). It ran as `ORCA025_NEVP2000` (job 1544646, complete and
+verified; downloaded and MD5-checked 2 Nov): the third setting of that test, not a new data version.
+Locally it is stored as `SEAICE_DYN_003_v3/ORCA025/`; "v3" is only that directory name (100 = v1,
+500 = v2, 2000 = "v3"), not a new full-hierarchy production.
 
 Validated by a 72-step ORCA2 run before production. v2 output is ~2.8× v1. ORCA2–ORCA05 were
 downloaded, MD5-verified and cleared from scratch on 29 Oct (§Data transfer and archive), then
 moved to an external HDD (re-verified, 30 Oct). ORCA025 completed and passed both verifications, and was
-downloaded, MD5-verified and cleared from scratch on 30 Oct. The GLOB16 trimmed domain and weights, and the ORCA05 weights, were
+downloaded, MD5-verified and cleared from scratch on 30 Oct, then moved to the external HDD
+(2 Nov). The GLOB16 trimmed domain and weights, and the ORCA05 weights, were
 lost on 30 Oct and must be rebuilt before use (§Directory layout). GLOB16 requires several departures from the common
 recipe — see [GLOB16](#glob16-special-conditions).
 
@@ -112,7 +115,8 @@ Runs once per member; offline forcing steps are shared across all members.
 **Produced (v1):** four members × 31 netCDF files = 124 files, 60 GB, each member carrying 3 883
 records across four streams over 2019-03-18 → 2019-11-01. **v2:** same file set, ~2.8× the volume;
 all four ORCA members complete and verified (ORCA2–ORCA05 on an external HDD; ORCA025
-local). ORCA025 `nn_nevp = 2000` control running (job 1544646). **Remaining:** GLOB16.
+on the HDD). ORCA025 `nn_nevp = 2000` control complete, verified and held locally ("v3").
+**Remaining:** GLOB16.
 
 ## The controlled comparison
 
@@ -818,7 +822,9 @@ output aside immediately.
 > 7, 18, 19, 24 and 48. The dry run passed (`nn_itend` 21888, `rn_Dt` 900., cold start, monthly
 > stocklist, `orca025_ant40s` weights only, `rn_ishlat` 2, `nn_rhg_chkcvg` 0, `split_freq 1mo` on all
 > four `file_def` entries, no dangling symlinks, 38 + 2 ranks); its banner still prints "ORCA025"
-> (line 25 hard-coded, cosmetic).
+> (line 25 hard-coded, cosmetic). **Consequence found after the run:** this `cn_exp` is 31 characters,
+> over SI3's 29-character limit for ice restart names, so the ice restarts were written as
+> `…_restart_i_NNNN.nc` (§Source-verified facts). Future variants must keep `cn_exp` ≤ 29 characters.
 
 ### `namelist_cfg`
 
@@ -1038,8 +1044,9 @@ deleted (29 Oct), together with `testing/orca2_ice_smoketest` (3.4 GB) and the i
 scratch (§Directory layout), the 250 GB quota held 115 GB (mostly ERA5 and GLORYS12), leaving
 ~135 GB: room for ORCA025 with ~18 GB to spare (228 GB used while ORCA025 v2 was held; back to
 115 GB after it was verified locally and cleared, 30 Oct). Restarts are negligible (ORCA025: 76
-files, 7.6 MB, at step 1344 only). The ORCA025 `nn_nevp = 2000` run (~121 GB) takes scratch to
-~236 GB (~14 GB margin). `quota -s` reports 0 and is unusable; measure with
+files, 7.6 MB, at step 1344 only). The ORCA025 `nn_nevp = 2000` run (~121 GB) took scratch to
+~236 GB (~14 GB margin). Its clean-up (31 output `.nc` and 76 restart files; run records, symlinks
+and the MD5 list kept) is pending as of 2 Nov and frees ~115 GB. `quota -s` reports 0 and is unusable; measure with
 `du -sh /scratch/djgway001`.
 
 ### Launch mechanism: `srun --multi-prog`
@@ -1184,7 +1191,8 @@ closest agreement achievable between two domains of different extent.
 
 Two scripts in `VALIDATION/`, run before any output is transferred.
 
-**`verify_logs.sh <GRID> <JOBID>`** — head-node safe (grep and `sacct` only):
+**`verify_logs.sh <GRID> <JOBID>`** — head-node safe (grep and `sacct` only). It is not on PATH:
+from a member directory run `../VALIDATION/verify_logs.sh <GRID> <JOBID>`.
 
 - `time.step` = 21888; `AAAAAAAA` at the end of `ocean.output`
 - no `E R R O R`, abort, misspelled-variable or NaN lines
@@ -1321,20 +1329,35 @@ unlike the other members — check whether over ice.
 |---|---|---|---|---|---|---|---|
 | 100 | v1, job 1349225 | 3:53:36 | 0.640 | 1.00 | 43.3 GiB | 43 337 903 919 B | — |
 | 500 | v2, job 1541973 | 7:24:53 | 1.22 | 1.90 | 51.0 GiB | 121 444 783 127 B | 7.6 MB |
-| 2000 | `ORCA025_NEVP2000`, job 1544646 (running; projected) | ~20.5 h | ~3.4 | ~5.3 | ~51 GiB | ~121 GB | ~8 MB |
+| 2000 | `ORCA025_NEVP2000`, job 1544646 | 20:52:16 | 3.43 | 5.36 | 41.1 GiB | 121 444 783 316 B | 76 files |
 
 With v2 = v1 × (1 + 4r), r ≈ 0.225: the rheology costs ≈ 22.5% of v1 runtime per 100 iterations at
 ORCA025 (14% at ORCA2/ORCA1, 20% at ORCA05; it rises with resolution). The 2000 run is then
 v1 × (1 + 19r) ≈ 20.5 h. Iteration cost is fixed because `nn_rhg_chkcvg = 0` (no early exit). The
-43.3 → 51.0 GiB rise comes from v2's extra output fields, not from iterations, so the 2000 run should
-peak near 51 GiB; output volume does not depend on `nn_nevp`. **Set-up:** a full-season cold start,
+43.3 → 51.0 GiB rise was attributed to v2's extra output fields, not iterations, and the 2000 run was
+projected at ~20.5 h and ~51 GiB. **Measured:** 20:52:16, so the runtime projection held; the step
+peak was 41.1 GiB, below both the projection and v2's 51.0 GiB, cause not established. Output volume
+does not depend on `nn_nevp` (the 189 B difference from v2 is metadata, e.g. the longer `cn_exp`).
+**Set-up:** a full-season cold start,
 identical to v2 ORCA025 except `nn_nevp`, in its own run directory (`ORCA025_NEVP2000`, `cn_exp =
 SEAICE_DYN_003_ORCA025_NEVP2000`) so the v2 run records are not overwritten; `common/` untouched
 (recorded exception, §`setup_production.sh`). A shorter window cannot start from a v2 restart, since
 SAS writes only step 1344 (§`ln_rst_list`). Submitted 30 Oct as job 1544646 (srvrochpc134,
-partition `ada`). After completion: `verify_logs.sh … | tee VERIFY_LOGS_ORCA025_NEVP2000.txt` and
-`verify_production.py` via a wrapper that tees its report into the run directory, having first
-checked that both scripts handle the new directory and filename prefix.
+partition `ada`).
+
+**`ORCA025_NEVP2000` verification (2 Nov).** `verify_logs.sh`: 0 FAIL; NEMO read `nn_nevp = 2000`;
+decomposition 38 × (107 × 122), identical to v1 and v2; output 114 GiB on scratch.
+`verify_production.py` (job 1555247; 6:48, batch MaxRSS 113.4 GiB): **1 FAIL, 2 WARN** (both WARNs
+benign). `_icemod`: 29 fields complete, 0 non-finite;
+`beta_evp` max 6883 (v2 6790); `sithic` max 28.45 m; `lead_open` max 1.803e-4; peak ice speed
+1.4927 m/s, identical at `nn_nevp` = 100, 500 and 2000. **The FAIL is a naming artefact, not missing
+data:** the check found 0 ice restarts, yet all 76 restart files exist; the ice restarts carry
+truncated names (§Source-verified facts, ice restart name length). An earlier attempt (job 1555244)
+failed in 6 s because `verify_production.py` derives `--domain` from `--grid`
+(`inputs/{grid}_ANT40S/domain_cfg.nc`, line 210), which does not exist for a variant name. **For
+variant runs pass `--domain` explicitly** (here `/scratch/djgway001/NEMO/inputs/ORCA025_ANT40S/
+domain_cfg.nc`), and give the wrapper (`verify_production_<GRID>.sh`) `set -o pipefail` and a
+`| tee VERIFY_PRODUCTION_<GRID>.txt`.
 
 ### Output inventory
 
@@ -1348,6 +1371,7 @@ Records: 1 824 + 1 824 + 228 + 7 = **3 883**.
 | ORCA1 | 2 697 144 623 | 7 554 518 551 |
 | ORCA05 | 15 654 970 287 | 43 867 059 095 |
 | ORCA025 | 43 337 903 919 | 121 444 783 127 |
+| ORCA025, `nn_nevp = 2000` | — | 121 444 783 316 |
 
 ### Conservation diagnostics — the primary cross-member result
 
@@ -1404,7 +1428,10 @@ Southern Hemisphere domain. Mean thickness is their ratio.
 Compute nodes are unreachable from outside the cluster, so transfers are **pulled from the local
 machine** using the head node as source host.
 
-Throughput via `djgway001@hex.uct.ac.za` is ~4.4–4.8 MB/s (~20 min per 5 GB; ~6.8 h for ORCA025 v2).
+Throughput via `djgway001@hex.uct.ac.za` was ~4.4–4.8 MB/s for v2 (~6.8 h for ORCA025) and ~6.5 MB/s
+for the ORCA025 `nn_nevp = 2000` run (121.45 GB in 4:57:43). Long transfers use a resumable loop,
+`until rsync -rt --partial …; do sleep 60; done`, followed by a dry-run `rsync` to confirm nothing is
+outstanding.
 v1 was pulled file set by file set:
 
 ```bash
@@ -1434,24 +1461,29 @@ they were missed on the first pass and fetched separately. ORCA025 uses `rsync -
 (`/scratch/djgway001/NEMO/experiments/SEAICE_DYN_003/v2_md5_ORCA025.txt`: 74 regular files = 31
 output + 43 run records, including `VERIFY_LOGS`, `VERIFY_PRODUCTION`, the verify wrapper and its
 logs, and `registry.bin`; `restart_files/` excluded), fetched to
-`~/Data/NEMO/SEAICE_DYN_003_v2/`. Completed 30 Oct (~6.8 h): all 74 files OK, trimmed domain MD5
+`~/Data/NEMO/SEAICE_DYN_003_v2/`. Completed 30 Oct (~6.8 h; moved to the external HDD on 2 Nov): all 74 files OK, trimmed domain MD5
 `7e1b052d43f3ac473441a9551b6f485e` (60 566 167 B) matching.
 
-**Data locations (30 Oct 2026).**
+**Data locations (2 Nov 2026).**
 
 ```
 ~/Data/NEMO/
-├── SEAICE_DYN_003_v1/      ORCA025 (A17's nn_nevp = 100 member), SEAICE_DYN_003_runrecords.tgz
-└── SEAICE_DYN_003_v2/      ORCA025 (output, run records, domain_cfg_ORCA025_ANT40S.nc; MD5-verified),
-                            v2_md5_<GRID>.txt (incl. v2_md5_ORCA025.txt)
-External HDD:               v1 and v2 ORCA2, ORCA1, ORCA05 (v2 re-verified by MD5 after the move);
+├── SEAICE_DYN_003_v1/      ORCA025 (nn_nevp = 100), SEAICE_DYN_003_runrecords.tgz
+├── SEAICE_DYN_003_v2/      v2_md5_<GRID>.txt only (all v2 output on the external HDD)
+└── SEAICE_DYN_003_v3/      ORCA025 = the nn_nevp = 2000 run (78 files, 114 GiB; MD5-verified),
+                            md5_ORCA025_NEVP2000.txt
+External HDD:               v1 ORCA2, ORCA1, ORCA05; v2 ORCA2–ORCA025 (MD5-verified);
                             five as-received domain_cfg files; 40°S domains of ORCA2, ORCA1, ORCA05
 ```
 
-The three ORCA025 solver-test settings total ~283 GB uncompressed (41 + 121 + ~121), more than the
-251 GB local disk: lossless compression (`nccopy -d 1 -s`, ~5× measured, applied locally after the
-MD5 check) or analysis from the HDD must be chosen before the 2000 run is downloaded. With v2
-ORCA025 local, ~47 GB is free (30 Oct), far short of the ~121 GB 2000 output.
+**"v3" is a directory name, not a data version.** It holds only the ORCA025 `nn_nevp = 2000` run
+(`ORCA025_NEVP2000`), the v2 configuration with only `nn_nevp` changed. The three ORCA025 solver
+settings map to 100 = v1 (local), 500 = v2 (HDD), 2000 = "v3" (local). Together they total ~283 GB
+uncompressed, more than the 251 GB local disk, so v2 ORCA025 sits on the HDD; compression was not
+needed. The 2000 run's list has 77 entries (31 output + 46 run records: v2's 74 plus
+`NEVP2000_EXCEPTION.txt` and the second verify job's logs; `restart_files/` excluded), `md5sum -c`
+all OK; its `domain_cfg_ORCA025_ANT40S.nc` was fetched with `rsync -L` and matches MD5
+`7e1b052d43f3ac473441a9551b6f485e`.
 
 **The trimmed `domain_cfg.nc` must accompany every member's output** — neither stream carries cell
 areas, so it is required for any area-weighted quantity, and it must be the *trimmed* file.
@@ -1567,6 +1599,11 @@ restarts at step 1344 only.
   — silent date offset, no warning. NEMO never reads the netCDF time coordinate for forcing.
 - **Dimension arithmetic** (`iom.F90:1280-1283`): forcing `time` must be UNLIMITED; forcing `depth`
   must be squeezed; initial conditions must have **no** singleton `time`.
+- **Ice restart names are truncated beyond 50 characters.** SI3 builds the ice restart filename in
+  `CHARACTER(len=50) :: clname` (`icerst.F90:52,71`); the name is `cn_exp` + 21 characters, so
+  **`cn_exp` must be ≤ 29 characters**. `SEAICE_DYN_003_ORCA025_NEVP2000` (31) produced
+  `…_restart_i_NNNN.nc` instead of `…_restart_ice_NNNN.nc`, which `verify_production.py`'s regex
+  `restart(_ice)?_(\d+)` does not match. Keep variant `cn_exp` values within the limit.
 - **Restart naming:** `cn_*rst_in` takes the **bare root** — `iom_open` appends `_<rank>.nc`. The
   four-digit suffix is the MPI rank, not a date.
 - **`sn_*` root must NOT end in `_`** — NEMO supplies the `_y` itself (`fldread.F90:1600-1601`); a

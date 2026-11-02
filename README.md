@@ -137,15 +137,21 @@ NEMO output is held by data version, locally and on an external HDD:
 │   ├── ORCA025/                  only v1 member held locally (ORCA025 solver test)
 │   ├── ORCA2/ ORCA1/ ORCA05/     empty: output on the external HDD since 2026-10-28
 │   └── SEAICE_DYN_003_runrecords.tgz
-└── SEAICE_DYN_003_v2/            v2: 29 _icemod fields, nn_nevp = 500
-    ├── ORCA025/                  output + run records + domain_cfg, MD5-verified 2026-10-30
-    ├── ORCA2/ ORCA1/ ORCA05/     empty: on the external HDD since 2026-10-30
-    └── v2_md5_<RES>.txt          HPC-made MD5 lists used for the checks
+├── SEAICE_DYN_003_v2/            v2: 29 _icemod fields, nn_nevp = 500
+│   ├── ORCA2/ ORCA1/ ORCA05/ ORCA025/   empty: all on the external HDD
+│   └── v2_md5_<RES>.txt          HPC-made MD5 lists used for the checks
+└── SEAICE_DYN_003_v3/            ORCA025 nn_nevp = 2000 run only (see note below)
+    ├── ORCA025/                  output + run records + domain_cfg, MD5-verified 2026-11-02
+    └── md5_ORCA025_NEVP2000.txt  HPC-made MD5 list (77 files)
 
-External HDD: v1 and v2 ORCA2, ORCA1, ORCA05 (v2 re-verified by MD5 after the
-move); the five as-received domain_cfg files; 40°S trimmed domains of ORCA2,
-ORCA1 and ORCA05.
+External HDD: v1 ORCA2, ORCA1, ORCA05; v2 ORCA2–ORCA025 (MD5-verified); the five
+as-received domain_cfg files; 40°S trimmed domains of ORCA2, ORCA1 and ORCA05.
 ```
+
+**"v3" is a directory name, not a new hierarchy version.** It holds only the
+ORCA025 run at `nn_nevp = 2000` (`ORCA025_NEVP2000`): the v2 configuration with
+only `nn_nevp` changed, and the third setting of the ORCA025 solver test
+(100 = v1, 500 = v2, 2000 = "v3").
 
 Each member directory holds that configuration's NEMO output (`_icemod`,
 `_grid_T`, `_sbcwind` files) and its own domain file
@@ -155,15 +161,13 @@ saved, `VERIFY_PRODUCTION_<RES>.txt`, `PROVENANCE.md`). Monthly files are split 
 the run start (18 Mar 2019), so `_201903-201904` covers 18 Mar – 18 Apr. The old
 path `~/Data/NEMO/SEAICE_DYN_003/` no longer exists; scripts select a version
 through `DATA_ROOTS` in `scripts/kinematics.py`, which points at the local
-directories, so ORCA2–ORCA05 show as "not held locally" unless a root is pointed
-at the HDD.
+directories, so all v2 members show as "not held locally" unless a root is
+pointed at the HDD. A `"v3"` root for the 2000 run is still to be added.
 
-> **Status (2026-10-30):** v2 ORCA025 (job 1541973) is archived locally in
-> `SEAICE_DYN_003_v2/ORCA025/`, MD5-verified (74 files), and cleared from HPC
-> scratch. The ORCA025 `nn_nevp = 2000` run (job 1544646) is running; ~47 GB is
-> free locally against its ~121 GB output, so a storage decision (compression
-> or HDD-based analysis) is needed before it is downloaded. v1 ORCA025 stays local as the `nn_nevp = 100`
-> member of the ORCA025 solver test. `~/Data/NEMO/hpc_offload/` was accidentally
+> **Status (2026-11-02):** all three ORCA025 solver-test settings are verified and
+> MD5-checked: `nn_nevp = 100` (v1, local), 500 (v2, external HDD) and 2000
+> ("v3", local; job 1544646). The 2000 run's HPC clean-up is pending.
+> `~/Data/NEMO/hpc_offload/` was accidentally
 > deleted on 2026-10-30: the GLOB16 trimmed domain and weights and the ORCA05
 > weights must be rebuilt before they are next needed (see `ROADMAP.md` A19).
 > GLOB16 output is pending.
@@ -212,28 +216,31 @@ Task-level status and blockers are tracked in [`ROADMAP.md`](ROADMAP.md).
 
 - **v2 production:** all four ORCA members complete and verified (runtime
   1.56–1.90× v1, rising with resolution; ORCA025 7:24:53, 51.0 GiB peak,
-  121 444 783 127 B). ORCA2–ORCA05 are MD5-verified on the external HDD and
-  ORCA025 locally; all four have been cleared from scratch.
+  121 444 783 127 B). All four are MD5-verified on the external HDD and cleared
+  from scratch.
 - **Storage:** v2 output is ~2.8× v1; compression deferred (5× measured with
-  `nccopy`). Scratch is back to 115 of 250 GB after ORCA025 was cleared; the
-  `nn_nevp = 2000` run takes it to ~236 GB (restarts are only ~8 MB). Locally ~47
-  GB is free, and the three ORCA025 solver-test settings total ~283 GB
-  uncompressed, more than the 251 GB disk: decide between lossless compression and
-  HDD-based analysis before the 2000 run finishes. `hpc_offload/` was lost on 2026-10-30; the
+  `nccopy`). Scratch still holds the `nn_nevp = 2000` run's output (~236 of 250
+  GB); deleting its 31 output files and 76 restarts (run records kept) is pending
+  and frees ~115 GB. The three ORCA025 solver-test settings total ~283 GB
+  uncompressed, more than the 251 GB disk, so v2 ORCA025 sits on the HDD
+  (compression not needed); ~47 GB is free locally. `hpc_offload/` was lost on 2026-10-30; the
   GLOB16 trimmed domain and weights must be rebuilt before the GLOB16 run, and
   the ORCA05 weights before any ORCA05 rerun. Copying the HPC
   `inputs/{ORCA2,ORCA1,ORCA025}_ANT40S/` to the HDD is recommended. Transfers use
-  `djgway001@hex.uct.ac.za` at ~4.4–4.8 MB/s.
+  `djgway001@hex.uct.ac.za` (4.4–6.5 MB/s) in a resumable `rsync` loop.
 - **ORCA025 solver-sensitivity test:** ORCA025 is compared at `nn_nevp` = 100
   (v1), 500 (v2) and 2000 (`ORCA025_NEVP2000`, the v2 configuration with only
   `nn_nevp` changed; the third setting of this test, not a new data version). `beta_evp` masking alone is weakest for vorticity, because
   rotation-dominated, low-deformation ice has the highest β. The three settings show
   whether the numerical contribution is small and shrinking with iteration count, and
   inform GLOB16's `nn_nevp`. v1 and v2 ORCA025 namelists differ only in `nn_nevp`
-  (checked 2026-10-29) and share the same decomposition. The 500 run is done, so 100
-  vs 500 can start. The 2000 run was generated by a documented hand-copy exception
-  (`setup_production.sh` has no `--variant`) and submitted as job 1544646 on
-  2026-10-30: a full-season cold start, projected ~20.5 h.
+  (checked 2026-10-29) and share the same decomposition. All three settings are run
+  and verified, so the comparison can proceed. The 2000 run (generated by a
+  documented hand-copy exception, since `setup_production.sh` has no `--variant`)
+  took 20:52:16 at a 41.1 GiB peak. Its `cn_exp` (31 characters) exceeded SI3's
+  29-character limit for ice restart names, so they were written truncated
+  (`…_restart_i_…`): keep variant `cn_exp` ≤ 29 characters, and pass `--domain`
+  explicitly to `verify_production.py` for variant runs.
 - **GLOB16:** `nn_nevp` (β ≈ 4× ORCA025; ~2000 iterations for equal convergence),
   segment driver, memory (300 GB effective step ceiling), and storage (~1.5 TB uncompressed
   vs a 250 GB scratch quota). Inputs must also be rebuilt before the production run,
