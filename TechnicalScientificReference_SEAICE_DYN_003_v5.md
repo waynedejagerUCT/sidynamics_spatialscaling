@@ -27,14 +27,14 @@ confined to its own halo, ≥ 2 500 km from any sea ice. Verified empirically �
 **Members.** ORCA2, ORCA1, ORCA05, ORCA025 form a clean ×2 ladder (2° → 1° → 0.5° → 0.25°).
 GLOB16 (1/16°) is a stated-caveat extension member from a different grid family.
 
-**Status (2 November 2026).**
+**Status (3 November 2026).**
 
 | Member | Trimmed | Weights | v1 production | v1 verified | v2 production | v2 verified |
 |---|---|---|---|---|---|---|
 | ORCA2 | yes | yes | complete | passed | **complete** (job 1502542) | passed (both scripts); downloaded, MD5-verified; on external HDD |
 | ORCA1 | yes | yes | complete | passed | **complete** (job 1502660) | passed (both scripts); downloaded, MD5-verified; on external HDD |
 | ORCA05 | yes | **lost 30 Oct** (rebuild before any rerun) | complete | passed | **complete** (job 1503915; 1502968 OOM-killed) | passed (both scripts); downloaded, MD5-verified; on external HDD |
-| ORCA025 | yes | yes | complete | passed | **complete** (job 1541973) | passed (both scripts); downloaded, MD5-verified; on external HDD |
+| ORCA025 | yes | yes | complete | passed | **complete** (job 1541973) | passed (both scripts); downloaded, MD5-verified; local and on external HDD |
 | GLOB16 | **lost 30 Oct** (rebuild) | **lost 30 Oct** (rebuild) | not run | — | not run | — |
 
 **v1** (Sep 2026): four members ran the full 228-day period at `rn_Dt = 900 s` under
@@ -60,14 +60,15 @@ v1 and v2 `namelist_cfg` files are identical and `namelist_ice_cfg` differs only
 `nn_nevp = 2000`, otherwise identical to v2, is planned as a solver-sensitivity control
 (100 / 500 / 2000; §Run statistics). It ran as `ORCA025_NEVP2000` (job 1544646, complete and
 verified; downloaded and MD5-checked 2 Nov): the third setting of that test, not a new data version.
-Locally it is stored as `SEAICE_DYN_003_v3/ORCA025/`; "v3" is only that directory name (100 = v1,
-500 = v2, 2000 = "v3"), not a new full-hierarchy production.
+Locally it is stored as `SEAICE_DYN_003_v2/ORCA025_NEVP2000/` (briefly `SEAICE_DYN_003_v3/ORCA025/`
+until 3 Nov); it sits under v2 because it shares v2's configuration and fields, and is not a new
+full-hierarchy production.
 
 Validated by a 72-step ORCA2 run before production. v2 output is ~2.8× v1. ORCA2–ORCA05 were
 downloaded, MD5-verified and cleared from scratch on 29 Oct (§Data transfer and archive), then
 moved to an external HDD (re-verified, 30 Oct). ORCA025 completed and passed both verifications, and was
-downloaded, MD5-verified and cleared from scratch on 30 Oct, then moved to the external HDD
-(2 Nov). The GLOB16 trimmed domain and weights, and the ORCA05 weights, were
+downloaded, MD5-verified and cleared from scratch on 30 Oct, moved to the external HDD (2 Nov) and
+copied back locally (3 Nov; re-verified). The GLOB16 trimmed domain and weights, and the ORCA05 weights, were
 lost on 30 Oct and must be rebuilt before use (§Directory layout). GLOB16 requires several departures from the common
 recipe — see [GLOB16](#glob16-special-conditions).
 
@@ -115,7 +116,8 @@ Runs once per member; offline forcing steps are shared across all members.
 **Produced (v1):** four members × 31 netCDF files = 124 files, 60 GB, each member carrying 3 883
 records across four streams over 2019-03-18 → 2019-11-01. **v2:** same file set, ~2.8× the volume;
 all four ORCA members complete and verified (ORCA2–ORCA05 on an external HDD; ORCA025
-on the HDD). ORCA025 `nn_nevp = 2000` control complete, verified and held locally ("v3").
+local and on the HDD). ORCA025 `nn_nevp = 2000` control complete, verified and held locally
+(`SEAICE_DYN_003_v2/ORCA025_NEVP2000/`).
 **Remaining:** GLOB16.
 
 ## The controlled comparison
@@ -1464,26 +1466,29 @@ logs, and `registry.bin`; `restart_files/` excluded), fetched to
 `~/Data/NEMO/SEAICE_DYN_003_v2/`. Completed 30 Oct (~6.8 h; moved to the external HDD on 2 Nov): all 74 files OK, trimmed domain MD5
 `7e1b052d43f3ac473441a9551b6f485e` (60 566 167 B) matching.
 
-**Data locations (2 Nov 2026).**
+**Data locations (3 Nov 2026).**
 
 ```
 ~/Data/NEMO/
 ├── SEAICE_DYN_003_v1/      ORCA025 (nn_nevp = 100), SEAICE_DYN_003_runrecords.tgz
-├── SEAICE_DYN_003_v2/      v2_md5_<GRID>.txt only (all v2 output on the external HDD)
-└── SEAICE_DYN_003_v3/      ORCA025 = the nn_nevp = 2000 run (78 files, 114 GiB; MD5-verified),
-                            md5_ORCA025_NEVP2000.txt
+└── SEAICE_DYN_003_v2/      ORCA025 (nn_nevp = 500; output, run records, domain_cfg),
+                            ORCA025_NEVP2000 (nn_nevp = 2000; 78 files, 114 GiB),
+                            v2_md5_<GRID>.txt, md5_ORCA025_NEVP2000.txt
 External HDD:               v1 ORCA2, ORCA1, ORCA05; v2 ORCA2–ORCA025 (MD5-verified);
                             five as-received domain_cfg files; 40°S domains of ORCA2, ORCA1, ORCA05
 ```
 
-**"v3" is a directory name, not a data version.** It holds only the ORCA025 `nn_nevp = 2000` run
-(`ORCA025_NEVP2000`), the v2 configuration with only `nn_nevp` changed. The three ORCA025 solver
-settings map to 100 = v1 (local), 500 = v2 (HDD), 2000 = "v3" (local). Together they total ~283 GB
-uncompressed, more than the 251 GB local disk, so v2 ORCA025 sits on the HDD; compression was not
-needed. The 2000 run's list has 77 entries (31 output + 46 run records: v2's 74 plus
+**The three ORCA025 solver settings are all local:** 100 = `v1/ORCA025`, 500 = `v2/ORCA025`,
+2000 = `v2/ORCA025_NEVP2000`. The 2000 run is the v2 configuration with only `nn_nevp` changed, not a
+new data version; it was briefly held as `SEAICE_DYN_003_v3/ORCA025/`. Together the three take
+~270 GiB; the local disk was expanded to 393 GB, so compression was not needed. v2 ORCA025 was
+copied back from the HDD on 3 Nov through Windows and re-verified against `v2_md5_ORCA025.txt`; the
+Windows `:Zone.Identifier` side-files and the restart files that came with it were then deleted.
+**Restart files are not kept locally:** they are deleted once the output has been validated. The 2000 run's list has 77 entries (31 output + 46 run records: v2's 74 plus
 `NEVP2000_EXCEPTION.txt` and the second verify job's logs; `restart_files/` excluded), `md5sum -c`
 all OK; its `domain_cfg_ORCA025_ANT40S.nc` was fetched with `rsync -L` and matches MD5
-`7e1b052d43f3ac473441a9551b6f485e`.
+`7e1b052d43f3ac473441a9551b6f485e`. Variant runs on a member's grid are read with
+`load_grid(member, root, run_dir=...)` in `scripts/kinematics.py`.
 
 **The trimmed `domain_cfg.nc` must accompany every member's output** — neither stream carries cell
 areas, so it is required for any area-weighted quantity, and it must be the *trimmed* file.

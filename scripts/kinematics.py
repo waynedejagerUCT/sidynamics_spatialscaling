@@ -4,7 +4,8 @@ import glob
 import numpy as np, xarray as xr
 
 DATA_ROOTS = {"v1": "/home/waynedj/Data/NEMO/SEAICE_DYN_003_v1",    # nn_nevp = 100, 8 _icemod fields
-              "v2": "/home/waynedj/Data/NEMO/SEAICE_DYN_003_v2"}    # nn_nevp = 500, 29 _icemod fields
+              "v2": "/home/waynedj/Data/NEMO/SEAICE_DYN_003_v2"}    # nn_nevp = 500, 29 _icemod fields;
+                                                                    # also holds ORCA025_NEVP2000 (nn_nevp = 2000)
 DATA_ROOT = DATA_ROOTS["v1"]       # default; members not held locally are skipped by the plot scripts
 ICE_MIN = 0.15                     # siconc threshold for ice cells
 DEF_FLOOR = 1e-8                   # s-1; rotation ratio not evaluated below this total deformation
@@ -16,9 +17,10 @@ def jp(a, s):                                              # non-periodic shift 
     else:     out[:s] = a[-s:]
     return out
 
-def load_grid(member, root=DATA_ROOT):
-    """C-grid metrics and masks from domain_cfg_<member>_ANT40S.nc."""
-    dom = xr.open_dataset(glob.glob(f"{root}/{member}/domain_cfg_{member}_ANT40S.nc")[0]).squeeze()
+def load_grid(member, root=DATA_ROOT, run_dir=None):
+    """C-grid metrics and masks from domain_cfg_<member>_ANT40S.nc in <root>/<run_dir or member>/
+    (run_dir for variant runs, e.g. ORCA025_NEVP2000 on the ORCA025 grid)."""
+    dom = xr.open_dataset(glob.glob(f"{root}/{run_dir or member}/domain_cfg_{member}_ANT40S.nc")[0]).squeeze()
     g = {k: dom[k].values.astype("f8") for k in ("e1t", "e2t", "e1u", "e2u", "e1v", "e2v", "e1f", "e2f")}
     g["tmask"] = dom["top_level"].values > 0
     g["fmask"] = g["tmask"] * ip(g["tmask"], -1) * jp(g["tmask"], -1) * jp(ip(g["tmask"], -1), -1)

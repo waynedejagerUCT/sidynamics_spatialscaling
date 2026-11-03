@@ -25,3 +25,5 @@ env/
 # Editor
 .vscode/
 .idea/
+# Windows alternate-data-stream side-files from copies through Windows
+*:Zone.Identifier

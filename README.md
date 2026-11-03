@@ -113,10 +113,15 @@ resolved or is lost across the hierarchy.
 ├── plots/            Figures and plotting scripts for diagnostics and results:
 │   ├── plot_beta_vortdef_hierarchy.py    8-panel map (ORCA2–ORCA025) of β and
 │   │                                     |ζ|/total deformation at one 3 h record.
-│   └── plot_beta_rotation_timeseries.py  Season time series of % ice converged
-│                                         (β ≤ nn_nevp) and % rotation-dominated;
-│                                         per-record results cached as CSV under
-│                                         ~/Data/intermediate/SEAICE_DYN_003/.
+│   ├── plot_beta_rotation_timeseries.py  Season time series of % ice converged
+│   │                                     (β ≤ nn_nevp) and % rotation-dominated;
+│   │                                     per-record results cached as CSV under
+│   │                                     ~/Data/intermediate/SEAICE_DYN_003/.
+│   ├── plot_orca025_nevp_timeseries.py   ORCA025 solver test: the same series for
+│   │                                     nn_nevp = 100 / 500 / 2000 (offline β for
+│   │                                     v1, NEMO beta_evp for 500 and 2000).
+│   └── vp_loops_vs_evp_nudging.html      Interactive explainer: VP nested loops vs
+│                                         EVP subcycles nudging towards balance.
 └── misc/             Supporting scripts, notes, and other project material.
 ```
 
@@ -137,36 +142,40 @@ NEMO output is held by data version, locally and on an external HDD:
 │   ├── ORCA025/                  only v1 member held locally (ORCA025 solver test)
 │   ├── ORCA2/ ORCA1/ ORCA05/     empty: output on the external HDD since 2026-10-28
 │   └── SEAICE_DYN_003_runrecords.tgz
-├── SEAICE_DYN_003_v2/            v2: 29 _icemod fields, nn_nevp = 500
-│   ├── ORCA2/ ORCA1/ ORCA05/ ORCA025/   empty: all on the external HDD
-│   └── v2_md5_<RES>.txt          HPC-made MD5 lists used for the checks
-└── SEAICE_DYN_003_v3/            ORCA025 nn_nevp = 2000 run only (see note below)
-    ├── ORCA025/                  output + run records + domain_cfg, MD5-verified 2026-11-02
-    └── md5_ORCA025_NEVP2000.txt  HPC-made MD5 list (77 files)
+└── SEAICE_DYN_003_v2/            v2: 29 _icemod fields, nn_nevp = 500
+    ├── ORCA025/                  output + run records + domain_cfg (MD5-verified)
+    ├── ORCA025_NEVP2000/         ORCA025 at nn_nevp = 2000 (see note below; MD5-verified)
+    ├── ORCA2/ ORCA1/ ORCA05/     empty: on the external HDD since 2026-10-30
+    ├── v2_md5_<RES>.txt          HPC-made MD5 lists used for the checks
+    └── md5_ORCA025_NEVP2000.txt  HPC-made MD5 list for the 2000 run (77 files)
 
 External HDD: v1 ORCA2, ORCA1, ORCA05; v2 ORCA2–ORCA025 (MD5-verified); the five
 as-received domain_cfg files; 40°S trimmed domains of ORCA2, ORCA1 and ORCA05.
 ```
 
-**"v3" is a directory name, not a new hierarchy version.** It holds only the
-ORCA025 run at `nn_nevp = 2000` (`ORCA025_NEVP2000`): the v2 configuration with
-only `nn_nevp` changed, and the third setting of the ORCA025 solver test
-(100 = v1, 500 = v2, 2000 = "v3").
+**`ORCA025_NEVP2000` is not a new hierarchy version.** It is ORCA025 run with the
+v2 configuration and only `nn_nevp` changed (2000), the third setting of the
+ORCA025 solver test (100 = v1, 500 = v2, 2000 = `v2/ORCA025_NEVP2000`). It sits
+under v2 because it shares v2's configuration and output fields. It was briefly
+held as `SEAICE_DYN_003_v3/ORCA025/`; that directory no longer exists.
 
 Each member directory holds that configuration's NEMO output (`_icemod`,
 `_grid_T`, `_sbcwind` files) and its own domain file
 (`domain_cfg_<RES>_ANT40S.nc`). v2 members also hold their run records
 (namelists, XMLs, `ocean.output`, logs, timing files, `VERIFY_LOGS_<RES>.txt` where
 saved, `VERIFY_PRODUCTION_<RES>.txt`, `PROVENANCE.md`). Monthly files are split from
-the run start (18 Mar 2019), so `_201903-201904` covers 18 Mar – 18 Apr. The old
+the run start (18 Mar 2019), so `_201903-201904` covers 18 Mar – 18 Apr. Restart files are not kept locally: they are deleted once the
+output has been validated. The old
 path `~/Data/NEMO/SEAICE_DYN_003/` no longer exists; scripts select a version
 through `DATA_ROOTS` in `scripts/kinematics.py`, which points at the local
-directories, so all v2 members show as "not held locally" unless a root is
-pointed at the HDD. A `"v3"` root for the 2000 run is still to be added.
+directories, so v2 ORCA2–ORCA05 show as "not held locally" unless a root is
+pointed at the HDD. Variant runs on a member's grid are read with
+`load_grid(member, root, run_dir="ORCA025_NEVP2000")`.
 
-> **Status (2026-11-02):** all three ORCA025 solver-test settings are verified and
-> MD5-checked: `nn_nevp = 100` (v1, local), 500 (v2, external HDD) and 2000
-> ("v3", local; job 1544646). The 2000 run's HPC clean-up is pending.
+> **Status (2026-11-03):** all three ORCA025 solver-test settings are verified,
+> MD5-checked and held locally: `nn_nevp = 100` (`v1/ORCA025`), 500 (`v2/ORCA025`)
+> and 2000 (`v2/ORCA025_NEVP2000`, job 1544646). The local disk is now 393 GB
+> (~69 GB free). The 2000 run's HPC clean-up is pending.
 > `~/Data/NEMO/hpc_offload/` was accidentally
 > deleted on 2026-10-30: the GLOB16 trimmed domain and weights and the ORCA05
 > weights must be rebuilt before they are next needed (see `ROADMAP.md` A19).
@@ -217,13 +226,13 @@ Task-level status and blockers are tracked in [`ROADMAP.md`](ROADMAP.md).
 - **v2 production:** all four ORCA members complete and verified (runtime
   1.56–1.90× v1, rising with resolution; ORCA025 7:24:53, 51.0 GiB peak,
   121 444 783 127 B). All four are MD5-verified on the external HDD and cleared
-  from scratch.
+  from scratch; ORCA025 is also held locally.
 - **Storage:** v2 output is ~2.8× v1; compression deferred (5× measured with
   `nccopy`). Scratch still holds the `nn_nevp = 2000` run's output (~236 of 250
   GB); deleting its 31 output files and 76 restarts (run records kept) is pending
-  and frees ~115 GB. The three ORCA025 solver-test settings total ~283 GB
-  uncompressed, more than the 251 GB disk, so v2 ORCA025 sits on the HDD
-  (compression not needed); ~47 GB is free locally. `hpc_offload/` was lost on 2026-10-30; the
+  and frees ~115 GB. With the local disk expanded to 393 GB, all three
+  ORCA025 solver-test settings (~270 GiB) are held locally; compression was not
+  needed (~69 GB free). `hpc_offload/` was lost on 2026-10-30; the
   GLOB16 trimmed domain and weights must be rebuilt before the GLOB16 run, and
   the ORCA05 weights before any ORCA05 rerun. Copying the HPC
   `inputs/{ORCA2,ORCA1,ORCA025}_ANT40S/` to the HDD is recommended. Transfers use
