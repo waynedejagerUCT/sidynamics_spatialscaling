@@ -54,12 +54,16 @@ def strain_components(u, v, g):
     s2 = 0.25 * (shr**2 + ip(shr**2, 1) + jp(shr**2, 1) + jp(ip(shr**2, 1), 1))
     return div, ten, s2
 
+def vorticity_f(u, v, g):
+    """Signed relative vorticity at F-points, s-1 (circulation form, fmask = 0 on land).
+    Negative = clockwise = cyclonic in the Southern Hemisphere."""
+    return ((ip(g["e2v"] * v, -1) - g["e2v"] * v)
+            - (jp(g["e1u"] * u, -1) - g["e1u"] * u)) / (g["e1f"] * g["e2f"]) * g["fmask"]
+
 def vorticity_t(u, v, g):
     """|Relative vorticity| at T-points: F-point zeta (circulation form, fmask = 0 on land), zeta**2 averaged
     F->T like shear**2 in strain_components, so grid-scale sign changes don't cancel."""
-    zeta = ((ip(g["e2v"] * v, -1) - g["e2v"] * v)
-            - (jp(g["e1u"] * u, -1) - g["e1u"] * u)) / (g["e1f"] * g["e2f"]) * g["fmask"]
-    z2 = zeta**2
+    z2 = vorticity_f(u, v, g)**2
     return np.sqrt(0.25 * (z2 + ip(z2, 1) + jp(z2, 1) + jp(ip(z2, 1), 1)))
 
 def rotation_ratio(u, v, g):
