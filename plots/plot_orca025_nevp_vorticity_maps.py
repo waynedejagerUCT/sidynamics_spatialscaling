@@ -20,7 +20,7 @@ from matplotlib.lines import Line2D
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(HERE, "..", "scripts"))
 sys.path.insert(0, HERE)
-from kinematics import ICE_MIN, load_grid, interior_cols, load_record, vorticity_f, ip, jp
+from kinematics import ICE_MIN, load_grid, interior_cols, load_record, vorticity_f, strain_components, ip, jp
 from estimate_beta_evp import beta_offline
 from plot_beta_vortdef_hierarchy import (find_record, mesh, add_background, style_map, panel_note,
                                          RATIO_CMAP, INK, INK2, PROJ, GEO)
@@ -64,7 +64,8 @@ def conv_share(cache, nevp, when):
 
 
 def load_panel(nevp, when, g):
-    """zeta at F, concentration at T and at F, beta at T (model where output, else offline), record bounds."""
+    """zeta at F, total deformation at T, concentration at T and F, beta at T (model where output, else
+    offline), record bounds."""
     run = RUNS[nevp]
     f, t, bounds, _ = find_record(run["dir"], when, run["root"])
     with xr.open_dataset(f) as ds:
@@ -73,7 +74,9 @@ def load_panel(nevp, when, g):
         src = "NEMO beta_evp" if "beta_evp" in ds else "offline β"
     an = np.nan_to_num(a)
     a_f = 0.25 * (an + ip(an, -1) + jp(an, -1) + jp(ip(an, -1), -1))
-    return dict(zeta=vorticity_f(u, v, g), a=an, a_f=a_f, beta=beta, beta_src=src, bounds=bounds)
+    div, ten, s2 = strain_components(u, v, g)
+    return dict(zeta=vorticity_f(u, v, g), defo=np.sqrt(div**2 + ten**2 + s2), a=an, a_f=a_f, beta=beta,
+                beta_src=src, bounds=bounds)
 
 
 def row_label(ax, bounds):

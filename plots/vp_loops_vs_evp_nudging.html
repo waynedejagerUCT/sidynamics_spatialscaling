@@ -2896,8 +2896,8 @@ body[data-not-sent] > #vis-container ~ #not-sent {
         <path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path>
       </marker>
     </defs>
-  </svg><div id="vis-container"><h2 class="sr-only">Comparison of VP nested loops converging in plateaus with EVP subcycles nudging the stress towards balance, with a slider controlling nudge size.</h2>
-<svg width="100%" viewBox="0 0 680 360" role="img" id="cv"><title>VP loops versus EVP nudging</title><desc>Top: VP inner sweeps converge to a plateau for frozen viscosities, then the outer loop updates viscosities. Bottom: EVP subcycles move a fraction of the way to balance each step.</desc>
+  </svg><div id="vis-container"><h2 class="sr-only">Comparison of VP nested loops converging in plateaus with EVP subcycles nudging the stress towards balance, with sliders controlling the stress (α) and momentum (β) relaxation factors.</h2>
+<svg width="100%" viewBox="0 0 680 360" role="img" id="cv"><title>VP loops versus EVP nudging</title><desc>Top: VP inner sweeps converge to a plateau for frozen viscosities, then the outer loop updates viscosities. Bottom: modified EVP subcycles nudge the stress by 1/α and the velocity by 1/β of the way to balance each step.</desc>
 <text class="th" x="40" y="50">VP</text>
 <text class="ts" x="40" y="70">inner sweeps,</text>
 <text class="ts" x="40" y="86">then outer update</text>
@@ -2910,8 +2910,9 @@ body[data-not-sent] > #vis-container ~ #not-sent {
 <text class="ts" x="495" y="160" text-anchor="middle">outer 3</text>
 
 <text class="th" x="40" y="220">Modified EVP</text>
-<text class="ts" x="40" y="240">one nudge of 1/α</text>
-<text class="ts" x="40" y="256">per subcycle</text>
+<text class="ts" x="40" y="240">stress nudged 1/α,</text>
+<text class="ts" x="40" y="256">velocity 1/β</text>
+<text class="ts" x="40" y="272">per subcycle</text>
 <line x1="170" y1="254" x2="630" y2="254" stroke="var(--t)" stroke-width="0.5" stroke-dasharray="4 3"></line>
 <text class="ts" x="630" y="214" text-anchor="end">balance</text>
 <rect x="170" y="200" width="460" height="120" fill="none" stroke="var(--b)" stroke-width="0.5"></rect>
@@ -2919,9 +2920,14 @@ body[data-not-sent] > #vis-container ~ #not-sent {
 <text class="ts" x="400" y="340" text-anchor="middle">subcycle number (60 shown)</text>
 </svg>
 <div style="display:flex;align-items:center;gap:12px;margin:8px 0 0;font-size:13px;color:var(--text-secondary)">
-<label for="al">Nudge size 1/α</label>
+<label for="al" style="min-width:150px">Stress nudge 1/α<br><span style="font-size:11px">α: stress relaxation factor</span></label>
 <input type="range" id="al" min="3" max="60" step="1" value="10" style="flex:1" oninput="drawEvp()">
 <span id="av" style="min-width:52px;text-align:right"></span>
+</div>
+<div style="display:flex;align-items:center;gap:12px;margin:6px 0 0;font-size:13px;color:var(--text-secondary)">
+<label for="be" style="min-width:150px">Velocity nudge 1/β<br><span style="font-size:11px">β: momentum relaxation factor</span></label>
+<input type="range" id="be" min="3" max="60" step="1" value="10" style="flex:1" oninput="drawEvp()">
+<span id="bv" style="min-width:52px;text-align:right"></span>
 </div>
 <p id="st" style="font-size:13px;margin:6px 0 0;color:var(--text-secondary)"></p>
 <script>
@@ -2942,11 +2948,12 @@ function mk(t,a){const e=document.createElementNS(NS,t);for(const k in a)e.setAt
  g.appendChild(mk('text',{x:570,y:52+(yt-50)+ (y0-yt)*0.03+8,class:'ts'})).textContent='';
 })();
 function drawEvp(){
- const a=+document.getElementById('al').value;
+ const a=+document.getElementById('al').value, b=+document.getElementById('be').value;
  document.getElementById('av').textContent='1/'+a;
+ document.getElementById('bv').textContent='1/'+b;
  const g=document.getElementById('evp');g.innerHTML='';
  const K=100,F=1,ss=K*F/(1+K);let u=0,s=0,vals=[0];
- for(let p=0;p<60;p++){s=s+(K*u-s)/a;u=u+((F-s)-u)/a;vals.push(s/ss);}
+ for(let p=0;p<60;p++){s=s+(K*u-s)/a;u=u+((F-s)-u)/b;vals.push(s/ss);}
  const Y=v=>320-(Math.max(-0.5,Math.min(2,v))+0.5)/2.5*120;
  const X=i=>170+i*460/60;
  let pts=vals.map((v,i)=>X(i)+','+Y(v)).join(' ');
@@ -2955,7 +2962,7 @@ function drawEvp(){
  const col=blown?'#E24B4A':'#1D9E75';
  g.appendChild(mk('polyline',{points:pts,fill:'none',stroke:col,'stroke-width':1.5}));
  vals.forEach((v,i)=>g.appendChild(mk('circle',{cx:X(i),cy:Y(v),r:2,fill:col})));
- document.getElementById('st').textContent=blown?'Nudge too large: each correction overshoots more than the last, and the solution blows up.':ok?'Nudge about right: settles on the balance within the subcycles available.':'Nudge too small: stable, but still wobbling and not yet settled after 60 subcycles.';
+ document.getElementById('st').textContent='α·β = '+(a*b)+'. '+(blown?'Nudges too large together (α·β too small for this stiffness): each correction overshoots more than the last, and the solution blows up.':ok?'Settles on the balance within the subcycles available.':'Stable, but nudges too small (α or β large): still wobbling and not yet settled after 60 subcycles.');
 }
 drawEvp();
 </script></div></body></html>
