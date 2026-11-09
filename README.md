@@ -103,6 +103,11 @@ resolved or is lost across the hierarchy.
 │   │                         in the SEAICE_DYN_003 resolution hierarchy.
 │   ├── trim_domain_cfg.py    Trims a domain_cfg file to a southern band below a
 │   │                         target latitude (for the standalone SI3 setup).
+│   ├── build_weights.py      Builds bilinear ERA5 and GLORYS interpolation weights
+│   │                         for a trimmed domain with NEMO's SCRIP tools.
+│   ├── expand_weights.py     Rewrites compacted SCRIP weights in positional form;
+│   │                         --verify-only is the full weights check.
+│   │                         (These four match the cluster copies as of 2026-11-09.)
 │   ├── estimate_beta_evp.py  Offline estimate of the aEVP relaxation parameter
 │   │                         from model output, to check nn_nevp convergence.
 │   │                         Also importable: beta_offline, and beta_from to
@@ -140,7 +145,6 @@ NEMO output is held by data version, locally and on an external HDD:
 ~/Data/NEMO/
 ├── SEAICE_DYN_003_v1/            v1: 8 _icemod fields, nn_nevp = 100
 │   ├── ORCA025/                  only v1 member held locally (ORCA025 solver test)
-│   ├── ORCA2/ ORCA1/ ORCA05/     empty: output on the external HDD since 2026-10-28
 │   └── SEAICE_DYN_003_runrecords.tgz
 └── SEAICE_DYN_003_v2/            v2: 29 _icemod fields, nn_nevp = 500
     ├── ORCA025/                  output + run records + domain_cfg (MD5-verified)
@@ -150,7 +154,8 @@ NEMO output is held by data version, locally and on an external HDD:
     └── md5_ORCA025_NEVP2000.txt  HPC-made MD5 list for the 2000 run (77 files)
 
 External HDD: v1 ORCA2, ORCA1, ORCA05; v2 ORCA2–ORCA025 (MD5-verified); the five
-as-received domain_cfg files; 40°S trimmed domains of ORCA2, ORCA1 and ORCA05.
+as-received domain_cfg files; 40°S trimmed domains of ORCA2, ORCA1 and ORCA05; the
+rebuilt GLOB16_ANT40S/ inputs (domain and weights, MD5-verified).
 ```
 
 **`ORCA025_NEVP2000` is not a new hierarchy version.** It is ORCA025 run with the
@@ -172,14 +177,13 @@ directories, so v2 ORCA2–ORCA05 show as "not held locally" unless a root is
 pointed at the HDD. Variant runs on a member's grid are read with
 `load_grid(member, root, run_dir="ORCA025_NEVP2000")`.
 
-> **Status (2026-11-03):** all three ORCA025 solver-test settings are verified,
+> **Status (2026-11-09):** all three ORCA025 solver-test settings are verified,
 > MD5-checked and held locally: `nn_nevp = 100` (`v1/ORCA025`), 500 (`v2/ORCA025`)
 > and 2000 (`v2/ORCA025_NEVP2000`, job 1544646). The local disk is now 393 GB
-> (~69 GB free). The 2000 run's HPC clean-up is pending.
-> `~/Data/NEMO/hpc_offload/` was accidentally
-> deleted on 2026-10-30: the GLOB16 trimmed domain and weights and the ORCA05
-> weights must be rebuilt before they are next needed (see `ROADMAP.md` A19).
-> GLOB16 output is pending.
+> (~69 GB free). The 2000 run's HPC clean-up is done (`ROADMAP.md` A17). The GLOB16
+> trimmed domain and weights, lost on 2026-10-30, were rebuilt and verified on the
+> cluster and backed up on the external HDD (A18); the ORCA05 weights are still
+> lost and need rebuilding only before an ORCA05 rerun. GLOB16 output is pending.
 
 ### Satellite drift (OSISAF)
 
@@ -228,13 +232,12 @@ Task-level status and blockers are tracked in [`ROADMAP.md`](ROADMAP.md).
   121 444 783 127 B). All four are MD5-verified on the external HDD and cleared
   from scratch; ORCA025 is also held locally.
 - **Storage:** v2 output is ~2.8× v1; compression deferred (5× measured with
-  `nccopy`). Scratch still holds the `nn_nevp = 2000` run's output (~236 of 250
-  GB); deleting its 31 output files and 76 restarts (run records kept) is pending
-  and frees ~115 GB. With the local disk expanded to 393 GB, all three
+  `nccopy`). The `nn_nevp = 2000` run's output and restarts were deleted from
+  scratch on 2026-11-09 (run records kept); scratch now holds 118 of 250 GB,
+  including the rebuilt GLOB16 inputs. With the local disk expanded to 393 GB, all three
   ORCA025 solver-test settings (~270 GiB) are held locally; compression was not
-  needed (~69 GB free). `hpc_offload/` was lost on 2026-10-30; the
-  GLOB16 trimmed domain and weights must be rebuilt before the GLOB16 run, and
-  the ORCA05 weights before any ORCA05 rerun. Copying the HPC
+  needed (~69 GB free). The ORCA05 weights (lost 2026-10-30) must be rebuilt
+  before any ORCA05 rerun. Copying the HPC
   `inputs/{ORCA2,ORCA1,ORCA025}_ANT40S/` to the HDD is recommended. Transfers use
   `djgway001@hex.uct.ac.za` (4.4–6.5 MB/s) in a resumable `rsync` loop.
 - **ORCA025 solver-sensitivity test:** ORCA025 is compared at `nn_nevp` = 100
@@ -252,14 +255,12 @@ Task-level status and blockers are tracked in [`ROADMAP.md`](ROADMAP.md).
   explicitly to `verify_production.py` for variant runs.
 - **GLOB16:** `nn_nevp` (β ≈ 4× ORCA025; ~2000 iterations for equal convergence),
   segment driver, memory (300 GB effective step ceiling), and storage (~1.5 TB uncompressed
-  vs a 250 GB scratch quota). Inputs must also be rebuilt before the production run,
-  since both were lost on 2026-10-30 (`ROADMAP.md` A19): generate the 40°S domain by
-  re-trimming the full GLOB16L98 domain (held on the external HDD) with
-  `trim_domain_cfg.py`, then regenerate the ERA5, GLORYS SAS and GLORYS ice weights
-  with `build_weights.py`.
-- **Simulation period:** the hierarchy covers 18 Mar – 31 Oct 2019, whereas the
-  WP3.1 reference realisation is the 2022 season. Decide whether the hierarchy
-  also runs 2022.
+  vs a 250 GB scratch quota). Its 40°S domain and ERA5/GLORYS weights, lost on
+  2026-10-30, were rebuilt and verified on 2026-11-09 (`ROADMAP.md` A18) and are in
+  place on the cluster.
+- **Simulation period:** all simulation and analysis use 18 Mar – 31 Oct 2019,
+  including the GLOB16 reference realisation and the deployment design; no 2022
+  runs are planned.
 
 **Observational data**
 

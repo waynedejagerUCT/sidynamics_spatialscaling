@@ -170,7 +170,11 @@ def copy_variable(src_var, dst_var, y_axis, ny_new):
     copied one 2-D slab at a time so that the 3-D vertical scale factors of the
     fine grids never have to be held in memory in full.
     """
-    if src_var.ndim <= 2:
+    trimmed_bytes = src_var.dtype.itemsize
+    for n, d in enumerate(src_var.shape):
+        trimmed_bytes *= (ny_new if n == y_axis else d)
+
+    if src_var.ndim <= 2 or trimmed_bytes <= 2 * 1024**3:
         idx = [slice(None)] * src_var.ndim
         if y_axis is not None:
             idx[y_axis] = slice(0, ny_new)
@@ -282,10 +286,8 @@ def trim(src_path, dst_path, target_lat, wall_rows, zonal_tol,
                 filters = sv.filters() or {}
                 fill = sv.getncattr("_FillValue") if "_FillValue" in sv.ncattrs() else None
 
-                chunks = None
-                if sv.chunking() not in (None, "contiguous"):
-                    chunks = [min(c, dst.dimensions[d].size or c)
-                              for c, d in zip(sv.chunking(), sv.dimensions)]
+                chunks = None          # library default; inheriting the source's
+                                       # chunking forces read-modify-write on every slab
 
                 dv = dst.createVariable(
                     name, sv.dtype, sv.dimensions,
@@ -323,6 +325,20 @@ def trim(src_path, dst_path, target_lat, wall_rows, zonal_tol,
                 if name in dst.variables:
                     dst.variables[name][...] = value
                     w(f"    scalar {name} set to {value}")
+
+            # ---- carry forward the source's own global attributes ----------
+            # Copied FIRST so the explicit sets below override where they overlap.
+            # Load-bearing: domzgr.F90:115 reads the VertCoord ATTRIBUTE to set
+            # l_sco, falling back to ln_zco/ln_zps/ln_sco VARIABLES only when it is
+            # absent. ORCA2 carries VertCoord="zps" and has no such variables, so
+            # dropping the attribute left NEMO unable to resolve the vertical
+            # coordinate and it aborted at init. Other members happen to survive via
+            # the variable route, but the attributes (IsfCav, NEMOversion, ...) were
+            # being lost from every file.
+            # history is excluded: it is rebuilt below with the trim entry prepended.
+            for _att in src.ncattrs():
+                if _att != "history":
+                    dst.setncattr(_att, src.getncattr(_att))
 
             # ---- periodicity ----------------------------------------------
             dst.setncattr("Iperio", np.int32(1))
@@ -413,6 +429,14 @@ def verify(dst_path, src_path, target_lat, wall_rows, log):
         jp = get_scalar_var(ds, "jperio")
         if jp is not None and int(jp) != JPERIO_IPERIO_ONLY:
             failures.append(f"legacy jperio={int(jp)} not corrected")
+
+        with nc.Dataset(src_path, "r") as _src:
+            _lost = [a for a in _src.ncattrs()
+                     if a != "history" and a not in ds.ncattrs()]
+        w(f"   global attributes    {len(ds.ncattrs())} present, "
+          f"{len(_lost)} lost from source")
+        if _lost:
+            failures.append(f"source global attributes dropped: {', '.join(_lost)}")
 
         gphit = read_2d(ds, "gphit")
         w(f"   gphit range          [{gphit.min():.6f}, {gphit.max():.6f}]")

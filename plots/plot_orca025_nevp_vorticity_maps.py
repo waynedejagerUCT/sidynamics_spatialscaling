@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Signed relative vorticity maps for the ORCA025 solver-sensitivity test (A17). Writes two figures:
+"""Signed relative vorticity maps for the ORCA025 solver-sensitivity test (A16). Writes two figures:
 1. orca025_nevp_vorticity_maps.png (3 x 3): rows = three 3 h records through spring 2019 (start of September,
    start of October, late October), columns = nn_nevp 100 (v1), 500 (v2), 2000 (v2/ORCA025_NEVP2000).
 2. orca025_nevp_vorticity_diff.png (3 x 2): the same rows, columns = 100 - 2000 and 500 - 2000, with the

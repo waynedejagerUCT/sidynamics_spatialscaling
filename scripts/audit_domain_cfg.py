@@ -80,8 +80,8 @@ def getatt(ds, name, default):
         val = ds.getncattr(name)
         if isinstance(val, bytes):
             val = val.decode("utf-8", errors="replace")
-        if isinstance(val, np.ndarray) and val.size == 1:
-            val = val.item()
+        if isinstance(val, (np.ndarray, np.generic)) and np.size(val) == 1:
+            val = np.asarray(val).item()
         return val
     return default
 
@@ -543,6 +543,15 @@ def summary_table(records, target_lat, out):
     out.append("")
 
 
+def _json_default(obj):
+    """numpy scalars and arrays reaching the JSON encoder from attribute reads."""
+    if isinstance(obj, (np.integer, np.floating, np.bool_)):
+        return obj.item()
+    if isinstance(obj, np.ndarray):
+        return obj.tolist()
+    raise TypeError(f"not JSON serialisable: {type(obj).__name__}")
+
+
 def main():
     p = argparse.ArgumentParser(
         description="Read-only audit of NEMO domain_cfg files for the "
@@ -587,7 +596,8 @@ def main():
 
     if args.json_path:
         with open(args.json_path, "w") as fh:
-            json.dump({"target_lat": args.target_lat, "files": records}, fh, indent=2)
+            json.dump({"target_lat": args.target_lat, "files": records}, fh,
+                  indent=2, default=_json_default)
         print(f"[json record written to {args.json_path}]", file=sys.stderr)
 
     return 0

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Total-deformation counterpart of plot_orca025_nevp_vorticity_maps.py for the ORCA025 solver test (A17).
+"""Total-deformation counterpart of plot_orca025_nevp_vorticity_maps.py for the ORCA025 solver test (A16).
 Writes two figures with the same rows, columns, units and bin widths as the vorticity pair, for side-by-side
 comparison of how vorticity and deformation respond to nn_nevp:
 1. orca025_nevp_deformation_maps.png (3 x 3): total deformation at nn_nevp 100 (v1), 500 (v2), 2000.

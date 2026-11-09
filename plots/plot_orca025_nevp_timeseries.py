@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Two-panel time series for the ORCA025 solver-sensitivity test (A17): nn_nevp = 100 (v1), 500 (v2), 2000.
+"""Two-panel time series for the ORCA025 solver-sensitivity test (A16): nn_nevp = 100 (v1), 500 (v2), 2000.
 Upper: % of ice converged to a residual <= CONV_RESIDUAL, i.e. beta <= nn_nevp / ln(1/CONV_RESIDUAL)
 (residual after nn_nevp aEVP iterations ~ exp(-nn_nevp/beta)). beta is the offline estimate for v1, which
 has no beta_evp field, and NEMO's own beta_evp for 500 and 2000 (offline beta shown dashed as a cross-check).

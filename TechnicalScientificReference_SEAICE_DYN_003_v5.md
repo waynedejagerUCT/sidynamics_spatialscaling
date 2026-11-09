@@ -27,7 +27,7 @@ confined to its own halo, ≥ 2 500 km from any sea ice. Verified empirically �
 **Members.** ORCA2, ORCA1, ORCA05, ORCA025 form a clean ×2 ladder (2° → 1° → 0.5° → 0.25°).
 GLOB16 (1/16°) is a stated-caveat extension member from a different grid family.
 
-**Status (3 November 2026).**
+**Status (9 November 2026).**
 
 | Member | Trimmed | Weights | v1 production | v1 verified | v2 production | v2 verified |
 |---|---|---|---|---|---|---|
@@ -35,11 +35,11 @@ GLOB16 (1/16°) is a stated-caveat extension member from a different grid family
 | ORCA1 | yes | yes | complete | passed | **complete** (job 1502660) | passed (both scripts); downloaded, MD5-verified; on external HDD |
 | ORCA05 | yes | **lost 30 Oct** (rebuild before any rerun) | complete | passed | **complete** (job 1503915; 1502968 OOM-killed) | passed (both scripts); downloaded, MD5-verified; on external HDD |
 | ORCA025 | yes | yes | complete | passed | **complete** (job 1541973) | passed (both scripts); downloaded, MD5-verified; local and on external HDD |
-| GLOB16 | **lost 30 Oct** (rebuild) | **lost 30 Oct** (rebuild) | not run | — | not run | — |
+| GLOB16 | yes (rebuilt 9 Nov) | yes (rebuilt 9 Nov) | not run | — | not run | — |
 
 **v1** (Sep 2026): four members ran the full 228-day period at `rn_Dt = 900 s` under
 `srun --multi-prog`, 8 `_icemod` fields, `nn_nevp = 100`; output transferred to local storage and
-verified byte-for-byte. v1 ORCA2–ORCA05 output has since moved to an external HDD (28 Oct); v1
+verified byte-for-byte; v1 output was then removed from the cluster (16 Oct). v1 ORCA2–ORCA05 output has since moved to an external HDD (28 Oct); v1
 ORCA025 stays local as the `nn_nevp = 100` member of the ORCA025 solver-sensitivity test.
 
 **v2 regeneration** (from Oct 2026) reruns the same four members to add what the analysis needs and v1
@@ -64,12 +64,17 @@ Locally it is stored as `SEAICE_DYN_003_v2/ORCA025_NEVP2000/` (briefly `SEAICE_D
 until 3 Nov); it sits under v2 because it shares v2's configuration and fields, and is not a new
 full-hierarchy production.
 
-Validated by a 72-step ORCA2 run before production. v2 output is ~2.8× v1. ORCA2–ORCA05 were
+Validated by a 72-step ORCA2 run before production, in two attempts: the first (job 1501899) wrote 24
+of 29 fields and read `nn_nevp = 500`, but never wrote the ridging/rafting fields (§Build, ridging
+fix); the second (job 1502021, 1:14, rebuilt `nemo.exe`) wrote all 29 (ridging ~1e-9 s⁻¹, rafting
+~0, `lead_open` zero). The validation output was then deleted and ORCA2 regenerated with production
+values. v2 output is ~2.8× v1. ORCA2–ORCA05 were
 downloaded, MD5-verified and cleared from scratch on 29 Oct (§Data transfer and archive), then
 moved to an external HDD (re-verified, 30 Oct). ORCA025 completed and passed both verifications, and was
 downloaded, MD5-verified and cleared from scratch on 30 Oct, moved to the external HDD (2 Nov) and
-copied back locally (3 Nov; re-verified). The GLOB16 trimmed domain and weights, and the ORCA05 weights, were
-lost on 30 Oct and must be rebuilt before use (§Directory layout). GLOB16 requires several departures from the common
+copied back locally (3 Nov; re-verified). The GLOB16 trimmed domain and weights, lost on 30 Oct, were
+rebuilt and verified on 9 Nov; the ORCA05 weights remain lost and must be rebuilt before any ORCA05 rerun
+(§Directory layout). GLOB16 requires several departures from the common
 recipe — see [GLOB16](#glob16-special-conditions).
 
 ---
@@ -244,7 +249,7 @@ sed -i '/oasis_codes_id/d' cfgs/SEAICE_DYN_003/EXP00/iodef.xml
 - `key_RK3` — shipped by the SAS reference; `rn_atfp` is unused but read unconditionally
   (`domain.F90:241`), so leave it set.
 - The `oasis_codes_id` removal is required — XIOS3 aborts on that element.
-- **`MY_SRC/icedyn_rdgrft.F90` (v2, 2026-10-18) — ridging diagnostics fix.** In the shipped source,
+- **`MY_SRC/icedyn_rdgrft.F90` (v2; `nemo.exe` rebuilt 2026-10-18 12:25) — ridging diagnostics fix.** In the shipped source,
   `ice_dyn_rdgrft_init` sets `ll_diag_rdg` from `iom_use('lead_open' | 'rdg_*' | 'rft_*')`. That
   init runs before the XIOS context definition is closed, so `iom_use` returns `.FALSE.`, the flag
   stays `.FALSE.` for the whole run and the five fields are never sent (written as all-fill, 0 valid
@@ -272,7 +277,8 @@ Tools, built once:
 
 `inputs/domain_cfgs/` — never modified. Since 29 Oct 2026 the `.nc` files are no longer on the
 cluster; all five survive on an external HDD (the local `hpc_offload/` copy was lost on 30 Oct;
-§Directory layout). Upload them before any re-trim. Audited by `audit_domain_cfg.py`; report at
+§Directory layout). Upload them before any re-trim, and delete the upload afterwards (as for GLOB16L98,
+9 Nov). Audited by `audit_domain_cfg.py`; report at
 `AUDIT_domain_cfgs_40S.txt` / `.json`.
 
 | File | Grid | Provenance | Periodicity | Config identity | Cavities |
@@ -363,12 +369,23 @@ maximum over i rather than a mean guarantees no retained point lies north of the
    updates `ORCA_index` where present so both resolution routes agree.
 7. **Records provenance** — `TrimScript`, `TrimDate`, `TrimSourceFile`, `TrimTargetLat`,
    `TrimCutRowLat`, `TrimRowsRetained`, `TrimRowsOriginal`, `TrimWallRows`, plus a history entry.
+8. **Carries every source global attribute across except `history`**, copied first so the
+   periodicity, identity and provenance sets above override where they overlap; `history` is rebuilt
+   with the trim entry prepended. Load-bearing: `domzgr.F90:115` reads the `VertCoord` *attribute* to
+   choose the vertical coordinate when the `ln_zco`/`ln_zps`/`ln_sco` variables are absent. ORCA2
+   carries `VertCoord="zps"` and none of those variables, so a version that dropped the attributes
+   produced an ORCA2 file that aborted at start-up; `IsfCav`, `NEMOversion` and others were being lost
+   from every file. Fixed in the cluster copy before production; the repository copy was stale until
+   9 Nov 2026.
 
 **Verification, every file, from disk.** The script re-opens the written file, re-resolves
 dimensions, periodicity and identity **through the same logic NEMO uses**, then checks: no `gphit`
 north of the target; zero wet cells in the wall rows; bitwise comparison of `gphit`, `glamt`, `e1t`,
-`e2t`, `ff_t` against the source over retained rows. Non-zero exit on failure. All five:
-**VERIFICATION PASSED**, 0 mismatches.
+`e2t`, `ff_t` against the source over retained rows; and that no source global attribute other
+than `history` is missing (reported as "N present, M lost from source"). Non-zero exit on failure.
+All five: **VERIFICATION PASSED**, 0 mismatches. The GLOB16 re-trim of 9 Nov 2026 (after the 30 Oct
+loss) passed with every value in the table below reproduced, identity GLOB16/6, 23 global attributes
+and 0 lost.
 
 ```bash
 conda activate nemo_analysis
@@ -393,13 +410,15 @@ python3 -u trim_domain_cfg.py domain_cfg_GLOB16L98.nc  ../GLOB16_ANT40S/domain_c
 `UNKNOWN`/−999. The script refuses to overwrite an existing output.
 
 > **Chunk inheritance.** Copying the source file's chunk layout forces read-modify-write on every
-> slab (ORCA025: ~10 min). Letting the library choose its own chunking, plus copying variables whole
-> below a 2 GB threshold, brings it to 25 s. GLOB16's 3-D variables stay above the threshold and
+> slab (ORCA025: ~10 min). Letting the library choose its own chunking (`chunksizes=None`; compression
+> and shuffle settings are still copied), plus copying variables whole below a 2 GiB threshold, brings
+> it to 25 s. GLOB16's 3-D variables stay above the threshold and
 > keep the slab path — necessary, and ~10 min.
 
 ### Trimmed products
 
-`inputs/<GRID>_ANT40S/domain_cfg.nc`, each with `TRIM_LOG.txt`.
+`inputs/<GRID>_ANT40S/domain_cfg.nc`, each with `TRIM_LOG.txt`. Sizes in MiB/MB as listed; GLOB16 is
+exactly 816 803 227 B (779 MiB; MD5 `d58e8c8fc68680ed4e27ccaed04d7c76`, rebuilt 9 Nov 2026).
 
 | Member | Trimmed grid | Rows kept | Cut latitude | Northernmost wet | Surface-wet cells | Size |
 |---|---|---|---|---|---|---|
@@ -596,8 +615,12 @@ python3 -u expand_weights.py --verify-only $W/weights_bilin_glorys_orca05_ant40s
 python3 -u expand_weights.py --verify-only $W/weights_bilin_glorys_orca05_ant40s_ice.nc --domain-cfg $D
 ```
 
-The compacted SCRIP originals are kept on disk renamed `*.nc.compacted_BROKEN`; only the expanded
-files are used.
+The compacted SCRIP originals were kept on disk renamed `*.nc.compacted_BROKEN` (deleted 19 Oct 2026);
+only the expanded files are used. A v1-era link pointed at a misspelt `weights_bilinglorys_…` target
+(a stale link or paste artefact); the correctly spelt `weights_bilin_glorys_orca05_ant40s_ice.nc`
+resolves (17.7 MB) after regeneration, and v2 ORCA05 ran on it. All ORCA05 weights were later lost
+(§Directory layout) and must be rebuilt as above before any ORCA05 rerun; they are still lost as of
+9 Nov 2026.
 
 ### Weights verification — what must be checked
 
@@ -613,7 +636,18 @@ land and zero is finite. **Three checks are required:**
 
 All fifteen files as used for production: positional, every wet cell weighted, zero read-box
 inflation. ORCA05's GLORYS pair carries 19 122 zero-weight land cells by construction; no other file
-carries any.
+carries any. `build_weights.py --verify-only <TARGET>` checks only shape and finiteness; the three
+checks above are `expand_weights.py --verify-only`.
+
+**GLOB16 rebuild (9 Nov 2026).** `build_weights.py --target GLOB16_ANT40S` (exit 0) produced ERA5
+651 940 652 B (MD5 `d7eb3b8a08bd7ebe1928800f39a030b6`) and the GLORYS `_sas`/`_ice` pair, 651 940 652 B
+each and byte-identical (MD5 `78c8b0a5982d43bb626cb8adf391cc5b`). `build_weights.py --verify-only
+GLOB16_ANT40S` and `expand_weights.py --verify-only` on all three passed: all 5 250 546 wet cells have
+total weight 1, no zero-weight cells. No expand step was needed: GLOB16's southern limit (−78.41°) is
+inside GLORYS coverage. Its `.work/` (4.9 GB) and the uploaded GLOB16L98 were then deleted from
+scratch; MD5s and logs are in `inputs/GLOB16_ANT40S/` (`GLOB16_ANT40S_md5.txt`, `TRIM_LOG.txt`,
+`trim_run.out`, `build_weights_run.out`). All existing GLOB16 links (run directory `domain_cfg.nc` and
+`_ice.nc`, `inputs/ERA5/`, `inputs/GLORYS12/forcing_002/processed/`) resolve again.
 
 ---
 
@@ -737,7 +771,7 @@ All four completed runs were stable at 900 s, consistent with their margins. **G
 2. **`common/` is edited, members are regenerated** — edit the template and re-run
    `setup_production.sh` rather than hand-patching five directories.
 
-**Moved off scratch (29 Oct 2026), then lost (30 Oct).** To make room for v2 ORCA025,
+**Moved off scratch (29 Oct 2026), lost (30 Oct), GLOB16 rebuilt (9 Nov).** To make room for v2 ORCA025,
 `inputs/GLOB16_ANT40S/` (2.6 GB), `inputs/ORCA05_ANT40S/` (2.6 GB) and the five as-received
 `inputs/domain_cfgs/domain_cfg_*.nc` (5.5 GB) were moved to a local `~/Data/NEMO/hpc_offload/`, which
 was accidentally deleted on 30 Oct with no backup. **Surviving:** all five as-received domains and
@@ -745,13 +779,20 @@ the 40°S trimmed domains of ORCA2, ORCA1 and ORCA05 on an external HDD; on the 
 domains and weights of ORCA2, ORCA1 and ORCA025 (`inputs/<GRID>_ANT40S/`) and the `domain_cfgs/`
 scripts, audit reports, `ORCA05_build/` and `ORCA05_weights_rebuild.log`. **Lost:** the GLOB16
 trimmed domain (`GLOB16_ANT40S/domain_cfg.nc`, 816 803 227 B) and its `TRIM_LOG.txt`, the GLOB16
-weights (ERA5, GLORYS SAS, GLORYS ice), and the ORCA05 weights (incl. `.work/`). **Rebuild before
-use:** for GLOB16, upload GLOB16L98 from the HDD, re-run `trim_domain_cfg.py` (deterministic; expect
-816 803 227 B) and rebuild the weights with `build_weights.py` into `inputs/GLOB16_ANT40S/`; for
-ORCA05, only if it is ever rerun, rebuild with `build_weights.py` + `expand_weights.py` + the ORCA05
-post-processing (§Unmapped destinations; `ORCA05_weights_rebuild.log`). Scratch is not backed up, so
-copying `inputs/{ORCA2,ORCA1,ORCA025}_ANT40S/` to the HDD is recommended; `ORCA025_ANT40S/` must stay
-on the cluster for the `nn_nevp = 2000` run.
+weights (ERA5, GLORYS SAS, GLORYS ice), and the ORCA05 weights (incl. `.work/`). **GLOB16 rebuilt
+(9 Nov 2026):** GLOB16L98 uploaded from the HDD (3 392 886 068 B, MD5
+`afe7bede84181065198b5484e386862a` on both ends), re-trimmed (identical to the original, 816 803 227 B;
+§Trimmed products) and its weights rebuilt and verified (§Weights verification); `inputs/GLOB16_ANT40S/`
+is back on the cluster and copied to the external HDD (MD5-checked, 4/4 OK; no local copy). The
+uploaded source was deleted again. **Still to rebuild:** the ORCA05 weights, only if ORCA05 is ever
+rerun, with `build_weights.py` + `expand_weights.py` + the ORCA05 post-processing (§Unmapped
+destinations; `ORCA05_weights_rebuild.log`). Scratch is not backed up, so copying
+`inputs/{ORCA2,ORCA1,ORCA025}_ANT40S/` to the HDD is still recommended. **Still to confirm:** the HDD copies' byte sizes against
+the pre-deletion sizes — as-received ORCA2L31 4 271 355, ORCA1L50 10 239 960, ORCA05L75 1 922 280 500,
+ORCA025L75 217 865 371, GLOB16L98 3 392 886 068 B; 40°S ORCA2 1 051 645, ORCA1 3 159 099, ORCA05
+811 562 104 B. Three as-received copies once held at the top of `~/Data/NEMO/`
+(`{GLOB16L98,ORCA025L75,ORCA1L50}_domain_cfg.nc`) are also gone. The empty `hpc_offload/` skeleton
+left locally was removed on 9 Nov; `hpc_offload/` no longer exists.
 `ERA5/` (`raw/` 51 GB: 10u, 10v, 2t, 2d, msl; `processed/` 38 GB: ssrd, strd, tp, sf) and
 `GLORYS12/` (20 GB) are read by every run and cannot be trimmed.
 
@@ -800,7 +841,7 @@ output aside immediately.
 > (`namelist_ice_cfg` and `file_def_nemo-ice.xml` are identical to ORCA1's). ORCA05's
 > `namelist_cfg` is therefore the true record of that run. It has been held locally since 29 Oct
 > (now on the external HDD). Regenerating ORCA05 also needs `inputs/ORCA05_ANT40S/` rebuilt: its
-> weights were lost on 30 Oct (§Directory layout).
+> weights were lost on 30 Oct and are still lost (§Directory layout).
 
 > **Recorded exception (ORCA025, `nn_nevp = 2000`).** `setup_production.sh` has no `--variant`
 > option (only `--member`), and the generated `submit_run.sh` hard-codes the run-directory path
@@ -934,7 +975,8 @@ remains unconverged at ORCA025; it is documented per cell and step by the `beta_
 GLOB16 β is roughly 4× ORCA025's (~2000 iterations for equal convergence); its `nn_nevp` is open.
 
 **In-model `beta_evp` versus the offline estimate.** At the coarse members in-model β exceeded the
-offline figure (ORCA2 max 666 vs ~125; ORCA1 Oct 99th percentile 113 vs 57), plausibly because
+offline figure (ORCA2 max 666 vs ~125, 0.0018% of ice cells > 500; ORCA1 Oct 99th percentile 113 vs
+57, max 857, 0.0004% > 500), plausibly because
 better-converged v2 ice deforms less in the compact pack. At **ORCA05 the two agree** (Sep: in-model
 99th 190 / max 630 vs offline 185 / 600), so the offline estimate is not consistently biased in
 either direction. Read the ORCA025 tail from its own `beta_evp`.
@@ -988,10 +1030,11 @@ receive data in the ORCA2 validation (the ridging/rafting group only after the `
   non-advective = `afxthd` + the same net ridging/rafting term, so ridging sits with the
   non-advective terms as the analysis requires.
 - **`lead_open`** is filled from `opning` at ridging points only (`icedyn_rdgrft.F90:1141`) and was
-  zero over ice in every month checked at ORCA2 and ORCA1. Kept for identical output across members;
+  zero over ice in every month checked at ORCA2, ORCA1 and ORCA05; at ORCA025 it is non-zero somewhere
+  (max 1.8e-4), not yet checked over ice. Kept for identical output across members;
   uninformative.
 - **`beta_evp`** is 50 over open water and > 50 in ice; compare with `nn_nevp` to flag poorly
-  converged cells.
+  converged cells. It adds ~3.7 GB uncompressed at ORCA025.
 - **`uice_cvg`** (solver convergence) is deliberately **not** output: it is written only when
   `nn_rhg_chkcvg > 0`, which is off in production.
 - Ice + snow mass for the momentum balance = ρᵢ·`siconc`·`sithic` + `snwmass` (no ice-mass field
@@ -1047,8 +1090,9 @@ scratch (§Directory layout), the 250 GB quota held 115 GB (mostly ERA5 and GLOR
 ~135 GB: room for ORCA025 with ~18 GB to spare (228 GB used while ORCA025 v2 was held; back to
 115 GB after it was verified locally and cleared, 30 Oct). Restarts are negligible (ORCA025: 76
 files, 7.6 MB, at step 1344 only). The ORCA025 `nn_nevp = 2000` run (~121 GB) took scratch to
-~236 GB (~14 GB margin). Its clean-up (31 output `.nc` and 76 restart files; run records, symlinks
-and the MD5 list kept) is pending as of 2 Nov and frees ~115 GB. `quota -s` reports 0 and is unusable; measure with
+~236 GB (~14 GB margin); its output and restarts were deleted on 9 Nov after the local copy was
+MD5-verified (228 → 115 GB). The rebuilt `inputs/GLOB16_ANT40S/` brings scratch to 118 GB (9 Nov 2026),
+leaving ~132 GB. `quota -s` reports 0 and is unusable; measure with
 `du -sh /scratch/djgway001`.
 
 ### Launch mechanism: `srun --multi-prog`
@@ -1071,7 +1115,7 @@ srun --mpi=pmix --mem=0 --ntasks=$((N+2)) --cpu-bind=none --multi-prog nemo_mpmd
   the launch (line 308). A `diff` against the backup confirms these are the only changes.
   v1 never hit the limit (peak 43 GB); v2 ORCA05 did (job 1502968: an XIOS server reached 113 GB
   against a 144 GB step limit during start-up → `OUT_OF_MEMORY`). With `--mem=0` the step receives
-  300 GB.
+  300 GB. ORCA05 was cleaned, regenerated and resubmitted (job 1503875) and completed as job 1503915.
 - **`--cpu-bind=none` is required, not optional.** Without it the job step's cpuset is scoped to the
   `--ntasks` request and the inherited default binding tries to bind outside it, failing immediately
   with `CPU binding outside of job step allocation`. The job's own allocation is unaffected — `sacct`
@@ -1307,7 +1351,8 @@ at 51.0 GiB (53 466 036 KiB) against the 300 GB step ceiling. MaxRSS values are 
 "GB" figures in both tables are GiB.
 
 All four completed v2 members passed `verify_logs.sh` and `verify_production.py`, plus a field-level
-check of the 29 `_icemod` variables and `beta_evp` at each. v2 ORCA2–ORCA05 restarts were deleted
+check of the 29 `_icemod` variables and `beta_evp` at each (ORCA2's only `verify_logs.sh` flag was the
+stale step-72 restarts left by the validation run, deleted). v2 ORCA2–ORCA05 restarts were deleted
 after verification; ORCA025's 76 restart files were deleted with its output on 30 Oct, after the
 local MD5 check.
 
@@ -1325,6 +1370,16 @@ of ice cells above 500 and the 99th percentile are to be computed after download
 29.09 m (v1 28.76 m; coastal pile-up); `lead_open` non-zero somewhere at ORCA025 (max 1.8e-4),
 unlike the other members — check whether over ice.
 
+**Why a three-setting ORCA025 solver test (100 / 500 / 2000).** `beta_evp` masking alone is weakest for
+vorticity: β rises as Δ falls, so rotation-dominated, low-deformation ice is the least converged, and
+masking it would remove the cases the vorticity test needs; masking also misses non-local effects of
+unconverged stress on later ice state. Three settings show the convergence trend — whether the
+500 → 2000 change is smaller than the 100 → 500 change and shrinks as ~exp(−N/β) — which one pair
+cannot. Fields compared: vorticity, deformation, their ratio, drift, concentration and thickness,
+binned by β (in-model `beta_evp` for 500 and 2000; the offline estimate for 100, whose comparisons are
+limited to the 8 v1 fields). Preconditions: ORCA025 v1 kept, and v1/v2 physically identical except
+`nn_nevp` (met at namelist level, see §Status). The result also informs GLOB16's `nn_nevp`.
+
 **ORCA025 solver-sensitivity resources (100 / 500 / 2000).**
 
 | `nn_nevp` | Run | Elapsed | s/step | × v1 | Step MaxRSS | Output (31 files) | Restarts |
@@ -1333,7 +1388,8 @@ unlike the other members — check whether over ice.
 | 500 | v2, job 1541973 | 7:24:53 | 1.22 | 1.90 | 51.0 GiB | 121 444 783 127 B | 7.6 MB |
 | 2000 | `ORCA025_NEVP2000`, job 1544646 | 20:52:16 | 3.43 | 5.36 | 41.1 GiB | 121 444 783 316 B | 76 files |
 
-With v2 = v1 × (1 + 4r), r ≈ 0.225: the rheology costs ≈ 22.5% of v1 runtime per 100 iterations at
+Earlier ORCA025 runtime projections (16–20 h, then 6–8 h, then 7–9 h) were refined as each member
+completed and the rheology share was measured. With v2 = v1 × (1 + 4r), r ≈ 0.225: the rheology costs ≈ 22.5% of v1 runtime per 100 iterations at
 ORCA025 (14% at ORCA2/ORCA1, 20% at ORCA05; it rises with resolution). The 2000 run is then
 v1 × (1 + 19r) ≈ 20.5 h. Iteration cost is fixed because `nn_rhg_chkcvg = 0` (no early exit). The
 43.3 → 51.0 GiB rise was attributed to v2's extra output fields, not iterations, and the 2000 run was
@@ -1480,11 +1536,12 @@ External HDD:               v1 ORCA2, ORCA1, ORCA05; v2 ORCA2–ORCA025 (MD5-ver
 
 **The three ORCA025 solver settings are all local:** 100 = `v1/ORCA025`, 500 = `v2/ORCA025`,
 2000 = `v2/ORCA025_NEVP2000`. The 2000 run is the v2 configuration with only `nn_nevp` changed, not a
-new data version; it was briefly held as `SEAICE_DYN_003_v3/ORCA025/`. Together the three take
+new data version; it was briefly held as `SEAICE_DYN_003_v3/ORCA025/` (that directory and the original
+`~/Data/NEMO/SEAICE_DYN_003/` no longer exist). Together the three take
 ~270 GiB; the local disk was expanded to 393 GB, so compression was not needed. v2 ORCA025 was
 copied back from the HDD on 3 Nov through Windows and re-verified against `v2_md5_ORCA025.txt`; the
 Windows `:Zone.Identifier` side-files and the restart files that came with it were then deleted.
-**Restart files are not kept locally:** they are deleted once the output has been validated. The 2000 run's list has 77 entries (31 output + 46 run records: v2's 74 plus
+**Restart files are not kept locally:** they are deleted once the output has been validated. The 2000 run's list (also on scratch, next to the run directory) has 77 entries (31 output + 46 run records: v2's 74 plus
 `NEVP2000_EXCEPTION.txt` and the second verify job's logs; `restart_files/` excluded), `md5sum -c`
 all OK; its `domain_cfg_ORCA025_ANT40S.nc` was fetched with `rsync -L` and matches MD5
 `7e1b052d43f3ac473441a9551b6f485e`. Variant runs on a member's grid are read with
@@ -1497,6 +1554,23 @@ areas, so it is required for any area-weighted quantity, and it must be the *tri
 counts against §Results (v2: MD5 lists). Scratch is not backed up, so the local copy plus an
 external backup is the only durable record. On the cluster, v2 ORCA2–ORCA05 configs and logs were
 kept after their output was deleted.
+
+**Clean-up (closed 9 Nov 2026;** rule: delete only what is neither needed for analysis nor useful
+for a rerun). *Cluster, deleted:* the `ORCA025_NEVP2000` run's 31 output `.nc` and 76 restart files
+(local copy MD5-verified first; run records, symlinks and the MD5 list kept);
+`setup_production.sh.bak`, `.bak_cpubind` and `.bak_stepmem`; `inputs/domain_cfgs/*.bak*` (5 files)
+and `__pycache__/`; `VALIDATION/*.bak_*` (3 files). This followed copying the cluster's
+`audit_domain_cfg.py`, `trim_domain_cfg.py`, `build_weights.py` and `expand_weights.py` into the
+repository (§Scripts). *Cluster, kept by choice:* the ORCA2, ORCA1, ORCA05 and ORCA025 run
+directories (configs and logs). *Local, deleted:* the empty `SEAICE_DYN_003_v1/{ORCA2,ORCA1,ORCA05}/`,
+the stray empty `SEAICE_DYN_003_v2/VERIFY_LOGS_ORCA025_NEVP2000.txt` (the real log is in
+`ORCA025_NEVP2000/`) and the `hpc_offload/` skeleton; no `SEAICE_DYN_003_v1/GLOB16/` placeholder
+existed (GLOB16 v1 was never run). *Local, kept by choice:* the empty
+`SEAICE_DYN_003_v2/{ORCA2,ORCA1,ORCA05}/` (contents on the HDD). *Done (3 Nov):* the Windows
+side-files and local restart files of v2 ORCA025. Scratch: 228 → 115 GB, 118 GB with the rebuilt
+GLOB16 inputs. *Keep:* all local run records, including v1 `ORCA025/VERIFY_LOGS_ORCA025.txt`
+(the only saved log check of the `nn_nevp = 100` member); cluster `inputs/` (ERA5, GLORYS12,
+ORCA2/ORCA1/ORCA025/GLOB16 `_ANT40S/`), `common/`, `setup_production.sh` and the `VALIDATION/` scripts.
 
 ---
 
@@ -1680,6 +1754,34 @@ construction.
 **Cross-member drift diagnostics are interpretable for ORCA1, ORCA05 and ORCA025.** ORCA2 is a
 resolution-floor endpoint, not a fourth point on a convergence curve.
 
+### Diagnostic code in this repository
+
+- **Reading (`scripts/kinematics.py`):** `load_grid` (metrics, T/F masks; `run_dir=` for variant runs),
+  `load_record` (one record; `sivelu`/`sivelv` as native U/V values), `interior_cols` (drops duplicate
+  zonal halo columns), `has_output`, and the `DATA_ROOTS` v1/v2 switch. Monthly files run 18th to 18th
+  (248 records each), so select records by `time_counter_bounds`, not filenames; that selection
+  (`find_record`) currently lives only in `plots/plot_beta_vortdef_hierarchy.py`. **ORCA05 carries two
+  duplicate zonal halo columns** (722 = 720 + 2); ORCA2, ORCA1 and ORCA025 are exactly periodic. Still
+  to add: a shared multi-file time-series reader and U/V positions for Lagrangian seeding.
+- **Operators:** divergence and tension at T; shear and ζ at F (ζ in circulation form with `e1u`,
+  `e2v`, `e1f`, `e2f`; `vorticity_f` keeps the sign). Shear and ζ are averaged to T as the mean of the
+  square — signed ζ averaging cancelled grid-scale sign changes and biased |ζ|/deformation low. Total
+  deformation √(div² + tension² + shear²); `rotation_ratio` gives |ζ|/total deformation. The rheology Δ
+  (1/e² scaling) is in `scripts/estimate_beta_evp.py`. **Open:** `fmask = 0` on land F-points imposes
+  free slip, so coast-adjacent ζ, shear and ratios are biased low; compare with SI3's `rn_ishlat`
+  treatment in synthetic tests, together with the ORCA05 halo seam and whether grid-scale speckle in the
+  ORCA05/ORCA025 pack ratio is physical or 2Δx noise.
+- **First offline results (v1, all members).** `plots/plot_beta_vortdef_hierarchy.py` (8-panel map,
+  2019-09-15 12:00–15:00) and `plots/plot_beta_rotation_timeseries.py` (every 3 h record; cache
+  `~/Data/intermediate/SEAICE_DYN_003/beta_rotation_ts_offline.csv`). Season means, ORCA2/1/05/025:
+  ice with β ≤ 100 = 100.0 / 99.7 / 97.8 / 92.8%; rotation-dominated ice (ratio > 1, total deformation
+  ≥ 1e-8 s⁻¹) = 32.5 / 37.6 / 42.5 / 45.4%. ORCA025 convergence falls to ~65% from mid-October (ORCA05
+  ~86%) while rotation dominance rises in every member; rotation-dominated, low-deformation ice sits
+  where β is highest. Caveats: offline β ran ~2× low against in-model β at ORCA2/ORCA1; the
+  `estimate_beta_evp.py` command-line statistics for ORCA05 include the two halo columns (the plot
+  scripts exclude them); with v1 ORCA2–ORCA05 on the HDD, the v1 series is reproducible only from its
+  cache and the v1 map shows ORCA025 alone.
+
 ## GLOB16: special conditions
 
 GLOB16 (5760 × 1179 × 98 trimmed, 6 791 040 grid points, 13.3× ORCA025) cannot use the common recipe
@@ -1713,7 +1815,8 @@ way to quantify the caveat; not needed for the ORCA members themselves, which sh
   independent of timestep (output frequency is in model time); ~300–500 GB if compressed offline.
 - **Against the quota:** far beyond the 250 GB scratch quota, of which inputs already take
   ~110 GB (Oct 2026; ERA5 89 GB and GLORYS12 20 GB). No scheduling arrangement makes it fit. The
-  GLOB16 trimmed domain and weights were lost on 30 Oct and must be rebuilt first (§Directory layout).
+  GLOB16 trimmed domain and weights, lost on 30 Oct, were rebuilt on 9 Nov and are in place
+  (`inputs/GLOB16_ANT40S/`, ~2.6 GiB; scratch at 118 GB).
 - **Consequence:** GLOB16 must run in segments with an archive cycle — run a segment, verify,
   transfer off the cluster, delete, continue — stopping gracefully at a measured free-space threshold
   rather than at a full filesystem. Each segment needs room for its output plus two restarts
@@ -1769,7 +1872,7 @@ timestep, and the restart check should be run with expected restart points suppl
 |---|---|---|
 | `audit_domain_cfg.py` | `inputs/domain_cfgs/` | Read-only audit of source domain files: dimensions, periodicity storage, config identity, cavity cells, grid spacing, latitude extents |
 | `trim_domain_cfg.py` | `inputs/domain_cfgs/` | Trim to 40°S, correct metadata, apply the northern wall, verify from disk |
-| `build_weights.py` | `inputs/domain_cfgs/` | Drive SCRIP per target × source; `--verify-only` checks a built set |
+| `build_weights.py` | `inputs/domain_cfgs/` | Drive SCRIP per target × source; `--verify-only <TARGET>` (a target name such as `GLOB16_ANT40S`, not a filename, although its "verify: SKIPPED" message suggests a filename) checks shape and finiteness only — the full check is `expand_weights.py --verify-only` |
 | `expand_weights.py` | `inputs/domain_cfgs/` | Rewrite a compacted SCRIP weights file into positional form; `--verify-only` checks positionality, wet-cell coverage, read-box span |
 | `setup_production.sh` | `experiments/SEAICE_DYN_003/` | Generate all five member run directories from `common/` |
 | `submit_run.sh` | generated, per member | Dry run and sbatch script for one member |
@@ -1781,6 +1884,12 @@ timestep, and the restart check should be run with expected restart points suppl
 | `make_glorys_ice_ic_002.py` | `inputs/GLORYS12/` | Ice initial condition (zero-fill, **not** drowned) |
 | `make_era5_{download,deaccumulate,unlimited,symlinks}_002.py` | `inputs/ERA5/` | ERA5 atmosphere pipeline |
 | `make_domain_cfg.exe` (`tools/DOMAINcfg`) | `inputs/domain_cfgs/ORCA05_build/` | Build ORCA05 from eORCA05 coordinates and bathymetry |
+
+`audit_domain_cfg.py`, `trim_domain_cfg.py`, `build_weights.py` and `expand_weights.py` are also kept
+in the repository's `scripts/`, byte-identical to the cluster copies as of 9 Nov 2026 (MD5
+`cd8b9c76…`, `c7c86a73…`, `0c62cfa3…`, `0eda401a…`). The earlier repository copies of the first two
+(9 Sep) predated the chunking, global-attribute and verification fixes (§What `trim_domain_cfg.py`
+does) and the audit's numpy-scalar attribute and JSON-output fixes.
 
 *The `_002` and `forcing_002` tokens are historical naming only — these are the current, working
 products for this experiment.*
