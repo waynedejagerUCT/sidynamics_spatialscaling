@@ -1,12 +1,12 @@
 # Roadmap: SEAICE_DYN_003 scale-dependent kinematics
 
-Living document: what is done and what is left. Scientific goals: [ProjectOutline.md](ProjectOutline.md). How the data were generated, verified, transferred and stored: [TechnicalScientificReference_SEAICE_DYN_003_v5.md](TechnicalScientificReference_SEAICE_DYN_003_v5.md) ("tech ref").
+Living document: what is done and what is left. Scientific goals: [ProjectOutline.md](ProjectOutline.md). How the data were generated (configuration, set-up, compute environment, scientific choices): [TechnicalScientificReference_SEAICE_DYN_003_v5.md](TechnicalScientificReference_SEAICE_DYN_003_v5.md) ("tech ref").
 
 **Last updated:** 2026-11-09 · All simulation and analysis use the 2019 season (18 Mar – 31 Oct); no 2022 runs planned.
 
 **Status key:** ✅ done · 🟡 in progress · ⬜ not started (unblocked) · ⛔ blocked (see *Blocked by*)
 
-**Data versions** (locations: tech ref §Data transfer and archive)
+**Data versions** (locations: README §Data; configuration: tech ref §1)
 - **v1:** ORCA2–ORCA025, 2019 season; 8 `_icemod` fields; `nn_nevp = 100`; ORCA025 local, rest on external HDD.
 - **v2:** ORCA2–ORCA025 rerun; 29 `_icemod` fields; `nn_nevp = 500`; ORCA025 local, all members on HDD.
 - **ORCA025_NEVP2000:** ORCA025 only, v2 configuration with `nn_nevp = 2000`; third A16 setting, not a new version; local under v2.
@@ -46,7 +46,7 @@ Sections C, D, E, G and the observed side of I can run on v1 data; v2 adds momen
 | ORCA025_NEVP2000 | — | ✅ (hand-copy exception, A16) | — | ✅ | ✅ local | 2000 |
 | GLOB16 | ⛔ | ⬜ | ⛔ A3 | ⛔ A4, A10 | ⛔ A5 | open (A10) |
 
-All v1 and v2 archives MD5-verified; run statistics and verification: tech ref §Run statistics, §Post-run verification.
+All v1 and v2 archives MD5-verified; run statistics and verification: tech ref §11, §12.
 
 ### Tasks
 
@@ -55,21 +55,21 @@ All v1 and v2 archives MD5-verified; run statistics and verification: tech ref �
 | A1 | Map required outputs to SI3 field IDs | ✅ | — |
 | A2 | Add 21 `_icemod` fields (29 total, incl. `beta_evp`) | ✅ | — |
 | A3 | ORCA2 72-step validation of the v2 set-up; all 29 fields written after the ridging fix (A13) | ✅ | — |
-| A4 | Storage on scratch and locally; compression not needed; local disk 393 GB holds all three ORCA025 settings; 2000-run HPC clean-up done (scratch 118 GB); `GLOB16_ANT40S` backed up to HDD; recommended: copy HPC `{ORCA2,ORCA1,ORCA025}_ANT40S` inputs to HDD; details: tech ref §Segmentation, §Directory layout, §Data transfer and archive | 🟡 | — |
+| A4 | Storage on scratch and locally; compression not needed; local disk 393 GB holds all three ORCA025 settings; 2000-run HPC clean-up done (scratch 118 GB); `GLOB16_ANT40S` backed up to HDD; recommended: copy HPC `{ORCA2,ORCA1,ORCA025}_ANT40S` inputs to HDD; data layout: README §Data | 🟡 | — |
 | A5 | Decide where GLOB16 output is stored (~1.5 TB; 250 GB scratch); GLOB16 inputs in place (A18) | ⛔ | A4 |
-| A6 | v2 production ORCA2 → ORCA025: all complete, verified and archived; ORCA05 `namelist_cfg` hand-edited (restart point only); details: tech ref §Run statistics, §`setup_production.sh` | ✅ | — |
+| A6 | v2 production ORCA2 → ORCA025: all complete, verified and archived; ORCA05 `namelist_cfg` hand-edited (restart point only); details: tech ref §9.2, §12 | ✅ | — |
 | A7 | ORCA05 ice-weights link checked and resolved | ✅ | — |
 | A8 | General solver-variant runs dropped; replaced by A16 | ✅ superseded | — |
-| A9 | aEVP decision: keep aEVP; `nn_nevp = 500` for ORCA2–ORCA025; `rn_relast` unused under aEVP; details: tech ref §`namelist_ice_cfg` | ✅ | — |
-| A10 | GLOB16: segment driver, memory and `nn_nevp` (~2000 for ORCA025-equivalent convergence); informed by A16 | ⬜ | — |
+| A9 | aEVP decision: keep aEVP; `nn_nevp = 500` for ORCA2–ORCA025; `rn_relast` unused under aEVP; details: tech ref §9.4 | ✅ | — |
+| A10 | GLOB16 run design; informed by A16; `rn_Dt`: 900 s inadmissible (CFL ~757 s); choose 600, 450 or 300 s (`nn_itend` 32 832 / 43 776 / 65 664), a stated caveat, boundable by a two-timestep ORCA025 test; segments (~1.5 TB): `ln_rst_list = .false.`, same rank count, continuous `nn_it000`, keep each restart (~49 GB) until read, check drift continuity at the first boundary; `nn_nevp` ~2000; memory: one node (300 GB step) unconfirmed, record first-segment MaxRSS; multi-node blocked by `dia_mlr_init` deadlock (try `transport_protocol = p2p`); likely more than 2 XIOS servers; set `--time` ~2× estimate | ⬜ | — |
 | A11 | Technical reference updated for v2 and the 2000 run | ✅ | — |
 | A12 | Apply `nn_nevp = 500` via the common template | ✅ | — |
 | A13 | Ridging-diagnostics source fix; `nemo.exe` rebuilt | ✅ | — |
 | A14 | `srun --mem=0` fix for job-step memory; effective step ceiling 300 GB | ✅ | — |
 | A15 | ORCA025 XIOS memory risk assessed: low; no change needed | ✅ | — |
-| A16 | ORCA025 solver test, `nn_nevp` 100 / 500 / 2000: all three runs done, verified and local; 2000 run: 20.9 h; first results: rotation-dominated share within ~2 points across settings; ζ and deformation differ from 2000 by ≤ 8% of the field; largest differences outside high-β ice; open: full comparison binned by β; rules for future variants: `cn_exp` ≤ 29 characters, pass `--domain` to `verify_production.py`; details: tech ref §Run statistics, §`setup_production.sh` | 🟡 | — |
-| A17 | Delete leftovers not needed for analysis or reruns (local and HPC); closed 2026-11-09: 2000-run output and restarts, backups and empty directories removed; scratch 228 → 118 GB; run directories kept; list: tech ref §Data transfer and archive | ✅ | — |
-| A18 | Rebuild lost GLOB16 trimmed domain and weights; done 2026-11-09: re-trim identical to the original, all three weights files pass the full check, backed up to HDD; ORCA05 weights still lost (rebuild only if ORCA05 is rerun); details: tech ref §Directory layout, §Weights verification | ✅ | — |
+| A16 | ORCA025 solver test, `nn_nevp` 100 / 500 / 2000: all three runs done, verified and local; 2000 run: 20.9 h; first results: rotation-dominated share within ~2 points across settings; ζ and deformation differ from 2000 by ≤ 8% of the field; largest differences outside high-β ice; open: full comparison binned by β; rules for future variants: `cn_exp` ≤ 29 characters, pass `--domain` to `verify_production.py`; details: tech ref §1, §9.2, §12 | 🟡 | — |
+| A17 | Delete leftovers not needed for analysis or reruns (local and HPC); closed 2026-11-09: 2000-run output and restarts, backups and empty directories removed; scratch 228 → 118 GB; run directories kept | ✅ | — |
+| A18 | Rebuild lost GLOB16 trimmed domain and weights; done 2026-11-09: re-trim identical to the original, all three weights files pass the full check, backed up to HDD; ORCA05 weights still lost (rebuild only if ORCA05 is rerun); details: tech ref §5.4, §7.4 | ✅ | — |
 
 ---
 
@@ -93,7 +93,7 @@ All v1 and v2 archives MD5-verified; run statistics and verification: tech ref �
 
 | ID | Task | Status | Blocked by |
 |---|---|---|---|
-| C1 | NEMO reader: grid, masks, record loading and v1/v2 switch done (`scripts/kinematics.py`); open: shared multi-file time-series reader; U/V positions for G1; details: tech ref §Diagnostic code | 🟡 | — |
+| C1 | NEMO reader: grid, masks, record loading and v1/v2 switch done (`scripts/kinematics.py`); open: shared multi-file time-series reader; U/V positions for G1; code: `scripts/kinematics.py` | 🟡 | — |
 | C2 | OSISAF 455 and swath readers (grids, time windows, uncertainty, flags) | ⬜ | — |
 | C3 | Time matching: integrate 3 h model velocity over each satellite displacement window | ⬜ | C1, C2 |
 | C4 | Regridding and coarsening to a common effective scale | ⬜ | C1, C2 |
@@ -107,7 +107,7 @@ All v1 and v2 archives MD5-verified; run statistics and verification: tech ref �
 
 | ID | Task | Status | Blocked by |
 |---|---|---|---|
-| D1 | C-grid operators (divergence, shear, total deformation, vorticity) implemented; open: coastal free-slip bias; details: tech ref §Diagnostic code | 🟡 | — |
+| D1 | C-grid operators (divergence, shear, total deformation, vorticity) implemented (`scripts/kinematics.py`); open: coastal free-slip bias (`fmask = 0` on land F-points) | 🟡 | — |
 | D2 | Synthetic-field tests (solid-body rotation, pure divergence); also coastal boundary, ORCA05 halo seam, grid-scale noise | ⬜ | — |
 | D3 | First complete case: ORCA025 vs OSISAF 455, Mar–Oct 2019, at common scale | ⬜ | D2, C3–C5 |
 | D4 | Extend to all members; vorticity/deformation ratio; significance masks | ⬜ | D3 |
@@ -133,7 +133,7 @@ All v1 and v2 archives MD5-verified; run statistics and verification: tech ref �
 
 | ID | Task | Status | Blocked by |
 |---|---|---|---|
-| F0 | v1 preview of F4 (no observations): convergence falls and rotation dominance rises with resolution; rotation-dominated ice is the least converged; supports A16; details: tech ref §Diagnostic code | ✅ | — |
+| F0 | v1 preview of F4 (no observations): convergence falls and rotation dominance rises with resolution; rotation-dominated ice is the least converged; supports A16; figures: `plots/plot_beta_vortdef_hierarchy.py`, `plots/plot_beta_rotation_timeseries.py` | ✅ | — |
 | F1 | Step 1: locate vorticity misfits beyond retrieval uncertainty | ⛔ | D4 |
 | F2 | Step 2a: test against curl of air–ice and ocean–ice stress, and ocean-current vorticity | ⛔ | F1 |
 | F3 | Step 2b: test against internal stress, Coriolis and tilt | ⛔ | F1 |

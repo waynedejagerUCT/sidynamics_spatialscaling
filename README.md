@@ -4,19 +4,19 @@
 
 | File | Purpose |
 |---|---|
-| [`README.md`](README.md) | This document: project overview, approach, data locations, outstanding tasks and environment. |
-| [`ROADMAP.md`](ROADMAP.md) | Analysis roadmap: sections, per-task status and blockers, and model rerun progress per member. Update as work completes. |
-| [`ProjectOutline.md`](ProjectOutline.md) | The scientific goals and research objectives (RO2, RO3) for understanding the physical sea-ice system. Use it to inform analysis and diagnostic choices. |
-| [`TechnicalScientificReference_SEAICE_DYN_003_v5.md`](TechnicalScientificReference_SEAICE_DYN_003_v5.md) | Complete technical and scientific reference for `SEAICE_DYN_003`: a forced standalone NEMO 5.0 + SI3 (SAS) Antarctic sea-ice hindcast run on UCT's HPC cluster across several resolutions, on domains trimmed to 40°S. It covers the cluster environment, build, domain preparation, forcing, interpolation weights, run configuration, verification and results, with the reasoning behind each scientific choice. Use it to interrogate how the model data were generated. |
+| [`README.md`](README.md) | This document: project overview, approach, repository layout, data locations, usage and environment. |
+| [`ROADMAP.md`](ROADMAP.md) | Analysis roadmap: per-task status and blockers, and model run progress per member. Update as work completes. |
+| [`ProjectOutline.md`](ProjectOutline.md) | The scientific goals and research objectives (RO2, RO3). Use it to inform analysis and diagnostic choices. |
+| [`TechnicalScientificReference_SEAICE_DYN_003_v5.md`](TechnicalScientificReference_SEAICE_DYN_003_v5.md) | How the `SEAICE_DYN_003` model output was generated: configuration, set-up, compute environment and the reason for each scientific choice. |
 
 ## Aim
 
 This project establishes whether, and at what spatial scales, a sea-ice model
 reproduces the observed Antarctic sea-ice state and the balance of processes that
-drives it. A NEMO-SI3 resolution hierarchy (2° to 1/16°), run standalone under
-fixed ERA5 and GLORYS12 forcing, is compared with satellite-derived drift at a
-common effective scale. Every consistency statement names that scale, and only
-differences beyond satellite retrieval uncertainty are treated as model
+drives it. A NEMO-SI3 resolution hierarchy (2° to 1/4° run; 1/16° planned), run
+standalone under fixed ERA5 and GLORYS12 forcing, is compared with satellite-derived
+drift at a common effective scale. Every consistency statement names that scale, and
+only differences beyond satellite retrieval uncertainty are treated as model
 deficiencies.
 
 Two kinematic tests are applied across the hierarchy:
@@ -39,11 +39,10 @@ deployments.
 
 **Eulerian source data**
 
-- NEMO SI3 (`SEAICE_DYN_003`) ice velocity fields at multiple grid resolutions. Hierarchical members include (coarse to fine):
-  ORCA2, ORCA1, ORCA05, ORCA025, GLOB16.
-- A satellite drift-retrieval product, to be incorporated as a parallel data source. Two satellite products being considered:
-  OSISAF 455 daily average at 75 km spatial resolution (found in /home/waynedj/Data/seaicedrift/osisaf/24hr/south/merged)
-  OSISAF S2S at 62.5 km spatial resolution (found in /home/waynedj/Data/seaicedrift/osisaf/swath)
+- NEMO SI3 (`SEAICE_DYN_003`) ice velocity fields at multiple grid resolutions,
+  coarse to fine: ORCA2, ORCA1, ORCA05, ORCA025, GLOB16.
+- Satellite drift retrievals: OSISAF 455 daily drift (75 km) and OSISAF S2S
+  swath-to-swath drift (62.5 km); locations under [Data](#data).
 
 **Lagrangian simulation**
 
@@ -96,7 +95,7 @@ resolved or is lost across the hierarchy.
 
 ```
 .
-├── preprocessing/   Scripts for reading, regridding, and preparing NEMO and
+├── preprocessing/    (empty; planned) reading, regridding and preparing NEMO and
 │                     satellite velocity fields ahead of Lagrangian simulation.
 ├── scripts/          NEMO configuration utilities and shared analysis code:
 │   ├── audit_domain_cfg.py   Read-only audit of domain_cfg files for inclusion
@@ -107,7 +106,6 @@ resolved or is lost across the hierarchy.
 │   │                         for a trimmed domain with NEMO's SCRIP tools.
 │   ├── expand_weights.py     Rewrites compacted SCRIP weights in positional form;
 │   │                         --verify-only is the full weights check.
-│   │                         (These four match the cluster copies as of 2026-11-09.)
 │   ├── estimate_beta_evp.py  Offline estimate of the aEVP relaxation parameter
 │   │                         from model output, to check nn_nevp convergence.
 │   │                         Also importable: beta_offline, and beta_from to
@@ -115,20 +113,57 @@ resolved or is lost across the hierarchy.
 │   └── kinematics.py         Shared C-grid code: domain_cfg loading, strain
 │                             rates, vorticity (ζ² averaged F→T), |ζ|/total
 │                             deformation, halo handling, ice/deformation thresholds.
-├── plots/            Figures and plotting scripts for diagnostics and results:
+├── plots/            Plotting scripts and the figures they write (.png):
 │   ├── plot_beta_vortdef_hierarchy.py    8-panel map (ORCA2–ORCA025) of β and
 │   │                                     |ζ|/total deformation at one 3 h record.
 │   ├── plot_beta_rotation_timeseries.py  Season time series of % ice converged
-│   │                                     (β ≤ nn_nevp) and % rotation-dominated;
-│   │                                     per-record results cached as CSV under
-│   │                                     ~/Data/intermediate/SEAICE_DYN_003/.
+│   │                                     (β ≤ nn_nevp) and % rotation-dominated.
 │   ├── plot_orca025_nevp_timeseries.py   ORCA025 solver test: the same series for
-│   │                                     nn_nevp = 100 / 500 / 2000 (offline β for
-│   │                                     v1, NEMO beta_evp for 500 and 2000).
+│   │                                     nn_nevp = 100 / 500 / 2000.
+│   ├── plot_orca025_nevp_vorticity_maps.py    ORCA025 solver test: signed
+│   │                                     vorticity maps (3 dates × 3 settings) and
+│   │                                     differences from 2000 with β contours.
+│   ├── plot_orca025_nevp_deformation_maps.py  Total-deformation counterpart of
+│   │                                     the vorticity maps, same scales.
 │   └── vp_loops_vs_evp_nudging.html      Interactive explainer: VP nested loops vs
 │                                         EVP subcycles nudging towards balance.
-└── misc/             Supporting scripts, notes, and other project material.
+└── misc/             Exploratory scripts (compute_monthly_mean.py: OSISAF 455
+                      monthly means; dataset_exploring.py).
 ```
+
+## Usage
+
+Run scripts in the `env010` environment (see [Environment](#environment)) from the
+repository root; figures are written to `plots/` by default (`--out-dir` to change).
+
+```bash
+conda activate env010
+```
+
+```bash
+python plots/plot_beta_vortdef_hierarchy.py --time 2019-09-15T12:00 --beta-source offline
+```
+
+```bash
+python plots/plot_beta_rotation_timeseries.py --source offline --weight count
+```
+
+```bash
+python plots/plot_orca025_nevp_timeseries.py --weight count --residual 0.05
+```
+
+```bash
+python plots/plot_orca025_nevp_vorticity_maps.py --times 2019-09-01T12:00 2019-10-01T12:00 2019-10-30T12:00
+```
+
+```bash
+python plots/plot_orca025_nevp_deformation_maps.py --times 2019-09-01T12:00 2019-10-01T12:00 2019-10-30T12:00
+```
+
+The two time-series scripts cache per-record results as CSV in
+`~/Data/intermediate/SEAICE_DYN_003/` (`beta_rotation_ts_offline.csv`,
+`orca025_nevp_ts.csv`) and reuse them unless `--recompute` is given; members not
+held locally are then read from the cache only.
 
 ## Data
 
@@ -139,55 +174,44 @@ is excluded in `.gitignore`).
 
 ### NEMO
 
-NEMO output is held by data version, locally and on an external HDD:
+| Version | Members | `_icemod` fields | `nn_nevp` | Held |
+|---|---|---|---|---|
+| v1 | ORCA2–ORCA025 | 8 | 100 | ORCA025 local; all on external HDD |
+| v2 | ORCA2–ORCA025 | 29 | 500 | ORCA025 local; all on external HDD |
+| v2 `ORCA025_NEVP2000` | ORCA025 | 29 | 2000 | local |
+
+`ORCA025_NEVP2000` is not a new version: it is v2 ORCA025 with only `nn_nevp`
+changed, the third setting of the ORCA025 solver test (100 = v1, 500 = v2,
+2000 = `v2/ORCA025_NEVP2000`).
 
 ```
 ~/Data/NEMO/
-├── SEAICE_DYN_003_v1/            v1: 8 _icemod fields, nn_nevp = 100
-│   ├── ORCA025/                  only v1 member held locally (ORCA025 solver test)
+├── SEAICE_DYN_003_v1/
+│   ├── ORCA025/                  v1 ORCA025 (nn_nevp = 100)
 │   └── SEAICE_DYN_003_runrecords.tgz
-└── SEAICE_DYN_003_v2/            v2: 29 _icemod fields, nn_nevp = 500
-    ├── ORCA025/                  output + run records + domain_cfg (MD5-verified)
-    ├── ORCA025_NEVP2000/         ORCA025 at nn_nevp = 2000 (see note below; MD5-verified)
-    ├── ORCA2/ ORCA1/ ORCA05/     empty: on the external HDD since 2026-10-30
-    ├── v2_md5_<RES>.txt          HPC-made MD5 lists used for the checks
-    └── md5_ORCA025_NEVP2000.txt  HPC-made MD5 list for the 2000 run (77 files)
+└── SEAICE_DYN_003_v2/
+    ├── ORCA025/                  v2 ORCA025 (nn_nevp = 500)
+    ├── ORCA025_NEVP2000/         ORCA025 at nn_nevp = 2000
+    ├── ORCA2/ ORCA1/ ORCA05/     empty (held on the external HDD)
+    ├── v2_md5_<RES>.txt          MD5 lists made on the HPC
+    └── md5_ORCA025_NEVP2000.txt
 
-External HDD: v1 ORCA2, ORCA1, ORCA05; v2 ORCA2–ORCA025 (MD5-verified); the five
-as-received domain_cfg files; 40°S trimmed domains of ORCA2, ORCA1 and ORCA05; the
-rebuilt GLOB16_ANT40S/ inputs (domain and weights, MD5-verified).
+External HDD: v1 ORCA2–ORCA05; v2 ORCA2–ORCA025; the five as-received domain_cfg
+files; 40°S trimmed domains of ORCA2, ORCA1 and ORCA05; GLOB16_ANT40S/ inputs.
 ```
 
-**`ORCA025_NEVP2000` is not a new hierarchy version.** It is ORCA025 run with the
-v2 configuration and only `nn_nevp` changed (2000), the third setting of the
-ORCA025 solver test (100 = v1, 500 = v2, 2000 = `v2/ORCA025_NEVP2000`). It sits
-under v2 because it shares v2's configuration and output fields. It was briefly
-held as `SEAICE_DYN_003_v3/ORCA025/`; that directory no longer exists.
-
-Each member directory holds that configuration's NEMO output (`_icemod`,
-`_grid_T`, `_sbcwind` files) and its own domain file
-(`domain_cfg_<RES>_ANT40S.nc`). v2 members also hold their run records
-(namelists, XMLs, `ocean.output`, logs, timing files, `VERIFY_LOGS_<RES>.txt` where
-saved, `VERIFY_PRODUCTION_<RES>.txt`, `PROVENANCE.md`). Monthly files are split from
-the run start (18 Mar 2019), so `_201903-201904` covers 18 Mar – 18 Apr. Restart files are not kept locally: they are deleted once the
-output has been validated. The old
-path `~/Data/NEMO/SEAICE_DYN_003/` no longer exists; scripts select a version
-through `DATA_ROOTS` in `scripts/kinematics.py`, which points at the local
-directories, so v2 ORCA2–ORCA05 show as "not held locally" unless a root is
-pointed at the HDD. Variant runs on a member's grid are read with
+Each member directory holds its NEMO output (`_icemod`, `_grid_T`, `_sbcwind`,
+`_SBC_scalar`) and its trimmed domain file (`domain_cfg_<RES>_ANT40S.nc`, needed for
+cell metrics). v2 members also hold their run records (namelists, XMLs,
+`ocean.output`, logs, timing files, verification reports, `PROVENANCE.md`).
+Restart files are not kept. Monthly files are split from the run start
+(18 Mar 2019), so `_201903-201904` covers 18 Mar – 18 Apr. Scripts select a
+version through `DATA_ROOTS` in `scripts/kinematics.py`, which points at the local
+directories, so v2 ORCA2–ORCA05 show as "not held locally" unless a root is pointed
+at the HDD. Variant runs are read with
 `load_grid(member, root, run_dir="ORCA025_NEVP2000")`.
 
-> **Status (2026-11-09):** all three ORCA025 solver-test settings are verified,
-> MD5-checked and held locally: `nn_nevp = 100` (`v1/ORCA025`), 500 (`v2/ORCA025`)
-> and 2000 (`v2/ORCA025_NEVP2000`, job 1544646). The local disk is now 393 GB
-> (~69 GB free). The 2000 run's HPC clean-up is done (`ROADMAP.md` A17). The GLOB16
-> trimmed domain and weights, lost on 2026-10-30, were rebuilt and verified on the
-> cluster and backed up on the external HDD (A18); the ORCA05 weights are still
-> lost and need rebuilding only before an ORCA05 rerun. GLOB16 output is pending.
-
 ### Satellite drift (OSISAF)
-
-Southern Hemisphere OSISAF sea-ice drift products are expected locally under:
 
 ```
 ~/Data/seaicedrift/osisaf/
@@ -198,96 +222,38 @@ Southern Hemisphere OSISAF sea-ice drift products are expected locally under:
     └── <YYYY>/<MM>/<DD>/     Per-swath-pair files (AMSR2); currently 13–31 Jul 2019 only
 ```
 
+## Open gaps and decisions
 
-## Outstanding tasks, gaps and decisions
+Status and blockers for every task are in [`ROADMAP.md`](ROADMAP.md). The items
+below are unresolved choices that shape the analysis.
 
-Task-level status and blockers are tracked in [`ROADMAP.md`](ROADMAP.md).
-
-> **These must be considered before the GLOB16 production run.** Some can only be
-> fixed by changing the model configuration, and changing it afterwards means
-> running the simulations again.
-
-**Resolved for v2 (configured in `common/` on the HPC; validated on ORCA2)**
-
-- **Ice-area tendencies and ridging:** `afxdyn`, `afxthd`, `rdg_*`, `rft_*` and
-  `lead_open` added to `_icemod`, enough to split the model's area change as Eq. 1
-  requires, with ridging on the non-advective side.
-- **Momentum balance:** internal stress, Coriolis, sea-surface tilt and snow mass
-  added; no residual estimate needed.
-- **Solver:** adaptive EVP kept; `nn_nevp = 500` for ORCA2–ORCA025 (v1: 100);
-  `rn_relast` is unused under aEVP. Convergence documented per cell by `beta_evp`,
-  plus one targeted solver-sensitivity test at ORCA025 (see below).
-- **Velocity grid:** `sivelu`/`sivelv` and the force-balance terms are native
-  U/V-point values, labelled as T-point fields in the files.
-- **Ridging diagnostics source fix:** SI3 never wrote the ridging/rafting fields
-  (flag set before XIOS was ready); fixed in `MY_SRC/icedyn_rdgrft.F90`
-  (diagnostics only) and `nemo.exe` rebuilt.
-- **Job-step memory:** `srun` now carries `--mem=0`; without it the step was capped
-  at `ntasks × 8000 MB` and v2 ORCA05 was OOM-killed at start-up.
-
-**Model runs: still open**
-
-- **v2 production:** all four ORCA members complete and verified (runtime
-  1.56–1.90× v1, rising with resolution; ORCA025 7:24:53, 51.0 GiB peak,
-  121 444 783 127 B). All four are MD5-verified on the external HDD and cleared
-  from scratch; ORCA025 is also held locally.
-- **Storage:** v2 output is ~2.8× v1; compression deferred (5× measured with
-  `nccopy`). The `nn_nevp = 2000` run's output and restarts were deleted from
-  scratch on 2026-11-09 (run records kept); scratch now holds 118 of 250 GB,
-  including the rebuilt GLOB16 inputs. With the local disk expanded to 393 GB, all three
-  ORCA025 solver-test settings (~270 GiB) are held locally; compression was not
-  needed (~69 GB free). The ORCA05 weights (lost 2026-10-30) must be rebuilt
-  before any ORCA05 rerun. Copying the HPC
-  `inputs/{ORCA2,ORCA1,ORCA025}_ANT40S/` to the HDD is recommended. Transfers use
-  `djgway001@hex.uct.ac.za` (4.4–6.5 MB/s) in a resumable `rsync` loop.
-- **ORCA025 solver-sensitivity test:** ORCA025 is compared at `nn_nevp` = 100
-  (v1), 500 (v2) and 2000 (`ORCA025_NEVP2000`, the v2 configuration with only
-  `nn_nevp` changed; the third setting of this test, not a new data version). `beta_evp` masking alone is weakest for vorticity, because
-  rotation-dominated, low-deformation ice has the highest β. The three settings show
-  whether the numerical contribution is small and shrinking with iteration count, and
-  inform GLOB16's `nn_nevp`. v1 and v2 ORCA025 namelists differ only in `nn_nevp`
-  (checked 2026-10-29) and share the same decomposition. All three settings are run
-  and verified, so the comparison can proceed. The 2000 run (generated by a
-  documented hand-copy exception, since `setup_production.sh` has no `--variant`)
-  took 20:52:16 at a 41.1 GiB peak. Its `cn_exp` (31 characters) exceeded SI3's
-  29-character limit for ice restart names, so they were written truncated
-  (`…_restart_i_…`): keep variant `cn_exp` ≤ 29 characters, and pass `--domain`
-  explicitly to `verify_production.py` for variant runs.
-- **GLOB16:** `nn_nevp` (β ≈ 4× ORCA025; ~2000 iterations for equal convergence),
-  segment driver, memory (300 GB effective step ceiling), and storage (~1.5 TB uncompressed
-  vs a 250 GB scratch quota). Its 40°S domain and ERA5/GLORYS weights, lost on
-  2026-10-30, were rebuilt and verified on 2026-11-09 (`ROADMAP.md` A18) and are in
-  place on the cluster.
-- **Simulation period:** all simulation and analysis use 18 Mar – 31 Oct 2019,
-  including the GLOB16 reference realisation and the deployment design; no 2022
-  runs are planned.
+> **GLOB16 configuration must be settled before its production run** (`ROADMAP.md`
+> A5, A10): changing it afterwards means running the simulation again.
 
 **Observational data**
 
 - **Swath coverage:** OSISAF S2S, the primary comparison product (WP2.2), is held
-  only for 13–31 Jul 2019. Decide whether to acquire more.
-- **Concentration product:** none held locally; needed for the observed Eq. 1
-  partition and the state comparison.
-- **Buoys:** AWI 2019 buoys are held; check their coverage against the model period.
+  only for 13–31 Jul 2019; decide whether to acquire more (B2).
+- **Concentration product:** none held; needed for the observed Eq. 1 partition
+  and the state comparison (B4).
+- **Buoys:** AWI 2019 buoys are held; check their coverage against the model
+  period (B5).
 - **Retrieval uncertainty:** per-retrieval uncertainties (RO1 inputs) must be
-  carried through to every derived diagnostic, since gradients amplify error.
+  carried through every derived diagnostic, since gradients amplify error (B3, C5).
 
 **Diagnostics**
 
 - **Time matching:** model trajectories (3-hourly) must be subsampled to the
   satellite timestep before comparing time-sensitive metrics such as the
-  meandering index.
+  meandering index (C3, G5).
 - **Convergence masking:** flag or mask cells where `beta_evp` exceeds `nn_nevp`
-  before attributing a vorticity or deformation misfit. ORCA05 is effectively
-  fully converged at 500 (≤ 0.02% of ice cells above it); ORCA025, the finest
-  member, is expected to have the largest tail. The ORCA025 100/500/2000 test checks what masking can't
-  catch, chiefly rotation-dominated ice.
+  before attributing a vorticity or deformation misfit; the ORCA025
+  100/500/2000 test covers what masking cannot, chiefly rotation-dominated ice
+  (A16, F4).
 
 ## Environment
 
 Analysis is carried out in the conda environment **`env010`** (Python 3.11.14).
-
-To activate:
 
 ```bash
 conda activate env010
@@ -295,7 +261,4 @@ conda activate env010
 
 Full package list: `conda list -n env010`.
 
-## Status
-
-This project is under active development. This README will be updated as the
-codebase, data holdings, and results evolve.
+Project status: see [`ROADMAP.md`](ROADMAP.md).
