@@ -178,7 +178,7 @@ is excluded in `.gitignore`).
 |---|---|---|---|---|
 | v1 | ORCA2–ORCA025 | 8 | 100 | ORCA025 local; all on external HDD |
 | v2 | ORCA2–ORCA025 | 29 | 500 | ORCA025 local; all on external HDD |
-| v2 `ORCA025_NEVP2000` | ORCA025 | 29 | 2000 | local |
+| v2 `ORCA025_NEVP2000` | ORCA025 | 29 | 2000 | local; external HDD |
 
 `ORCA025_NEVP2000` is not a new version: it is v2 ORCA025 with only `nn_nevp`
 changed, the third setting of the ORCA025 solver test (100 = v1, 500 = v2,
@@ -196,8 +196,9 @@ changed, the third setting of the ORCA025 solver test (100 = v1, 500 = v2,
     ├── v2_md5_<RES>.txt          MD5 lists made on the HPC
     └── md5_ORCA025_NEVP2000.txt
 
-External HDD: v1 ORCA2–ORCA05; v2 ORCA2–ORCA025; the five as-received domain_cfg
-files; 40°S trimmed domains of ORCA2, ORCA1 and ORCA05; GLOB16_ANT40S/ inputs.
+External HDD: all v1 and v2 output (incl. ORCA025_NEVP2000); all domain_cfg files,
+as received (global) and 40°S trimmed; GLOB16_ANT40S/ inputs (with weights).
+HPC: member run directories (configurations, logs) kept; output .nc files removed.
 ```
 
 Each member directory holds its NEMO output (`_icemod`, `_grid_T`, `_sbcwind`,
@@ -249,7 +250,7 @@ below are unresolved choices that shape the analysis.
 - **Convergence masking:** flag or mask cells where `beta_evp` exceeds `nn_nevp`
   before attributing a vorticity or deformation misfit; the ORCA025
   100/500/2000 test covers what masking cannot, chiefly rotation-dominated ice
-  (A16, F4).
+  (F4, F6).
 
 ## Environment
 
