@@ -12,7 +12,7 @@ import xarray as xr
 import numpy as np
 from pathlib import Path
 
-BASE = Path("/home/waynedj/Data/seaicedrift/osisaf/24hr/south/merged")
+BASE = Path("/home/waynedj/Data/seaicedrift/osisaf/OSI455/south/merged")
 OUT_DIR = BASE / "monthly_mean"
 OUT_DIR.mkdir(exist_ok=True)
 

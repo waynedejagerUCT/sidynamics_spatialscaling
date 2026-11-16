@@ -27,3 +27,6 @@ env/
 .idea/
 # Windows alternate-data-stream side-files from copies through Windows
 *:Zone.Identifier
+
+# Reference PDFs (licensed source documents): keep local, never commit
+source material/*.pdf

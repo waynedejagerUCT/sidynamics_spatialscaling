@@ -8,6 +8,7 @@
 | [`ROADMAP.md`](ROADMAP.md) | Analysis roadmap: per-task status and blockers, and model run progress per member. Update as work completes. |
 | [`ProjectOutline.md`](ProjectOutline.md) | The scientific goals and research objectives (RO2, RO3). Use it to inform analysis and diagnostic choices. |
 | [`TechnicalScientificReference_SEAICE_DYN_003_v5.md`](TechnicalScientificReference_SEAICE_DYN_003_v5.md) | How the `SEAICE_DYN_003` model output was generated: configuration, set-up, compute environment and the reason for each scientific choice. |
+| [`source material/`](source%20material/DIGEST.md) | How the satellite drift products were generated: OSI-455 ATBD and PUM, and Lavergne et al. (2021) for S2S. Start with `DIGEST.md`. These take priority over file metadata for product details. |
 
 ## Aim
 
@@ -176,9 +177,9 @@ is excluded in `.gitignore`).
 
 | Version | Members | `_icemod` fields | `nn_nevp` | Held |
 |---|---|---|---|---|
-| v1 | ORCA2–ORCA025 | 8 | 100 | ORCA025 local; all on external HDD |
-| v2 | ORCA2–ORCA025 | 29 | 500 | ORCA025 local; all on external HDD |
-| v2 `ORCA025_NEVP2000` | ORCA025 | 29 | 2000 | local; external HDD |
+| v1 | ORCA2–ORCA025 | 8 | 100 | external HDD only |
+| v2 | ORCA2–ORCA025 | 29 | 500 | all local; external HDD |
+| v2 `ORCA025_NEVP2000` | ORCA025 | 29 | 2000 | external HDD only |
 
 `ORCA025_NEVP2000` is not a new version: it is v2 ORCA025 with only `nn_nevp`
 changed, the third setting of the ORCA025 solver test (100 = v1, 500 = v2,
@@ -186,17 +187,14 @@ changed, the third setting of the ORCA025 solver test (100 = v1, 500 = v2,
 
 ```
 ~/Data/NEMO/
-├── SEAICE_DYN_003_v1/
-│   ├── ORCA025/                  v1 ORCA025 (nn_nevp = 100)
-│   └── SEAICE_DYN_003_runrecords.tgz
 └── SEAICE_DYN_003_v2/
-    ├── ORCA025/                  v2 ORCA025 (nn_nevp = 500)
-    ├── ORCA025_NEVP2000/         ORCA025 at nn_nevp = 2000
-    ├── ORCA2/ ORCA1/ ORCA05/     empty (held on the external HDD)
-    ├── v2_md5_<RES>.txt          MD5 lists made on the HPC
+    ├── ORCA2/ ORCA1/ ORCA05/ ORCA025/   v2 output (nn_nevp = 500); local copies
+    │                                    match the HPC MD5 lists
+    ├── v2_md5_<RES>.txt                 MD5 lists made on the HPC
     └── md5_ORCA025_NEVP2000.txt
 
-External HDD: all v1 and v2 output (incl. ORCA025_NEVP2000); all domain_cfg files,
+External HDD: all v1 and v2 output (incl. ORCA025_NEVP2000, needed for the solver
+test, F6) and SEAICE_DYN_003_runrecords.tgz; all domain_cfg files,
 as received (global) and 40°S trimmed; GLOB16_ANT40S/ inputs (with weights).
 HPC: member run directories (configurations, logs) kept; output .nc files removed.
 ```
@@ -208,19 +206,24 @@ cell metrics). v2 members also hold their run records (namelists, XMLs,
 Restart files are not kept. Monthly files are split from the run start
 (18 Mar 2019), so `_201903-201904` covers 18 Mar – 18 Apr. Scripts select a
 version through `DATA_ROOTS` in `scripts/kinematics.py`, which points at the local
-directories, so v2 ORCA2–ORCA05 show as "not held locally" unless a root is pointed
-at the HDD. Variant runs are read with
+directories; v1 and `ORCA025_NEVP2000` show as "not held locally" unless a root
+is pointed at the HDD. Variant runs are read with
 `load_grid(member, root, run_dir="ORCA025_NEVP2000")`.
 
 ### Satellite drift (OSISAF)
 
 ```
 ~/Data/seaicedrift/osisaf/
-├── 24hr/south/merged/        OSISAF 455 daily drift, 75 km (EASE2 grid)
-│   ├── <YYYY>/<MM>/          Daily files, 1990–2025
+├── OSI455/south/merged/      OSISAF 455 daily drift, 75 km (EASE2 grid)
+│   ├── <YYYY>/<MM>/          Daily files, 1990–2025 (<YYYY>/ also holds a yearly
+│   │                         aggregate, identical to the daily files; readers skip it)
 │   └── monthly_mean/         Derived monthly means (sh_monthly_mean_<YYYY>_<MM>.nc)
-└── swath/                    OSISAF S2S swath-to-swath drift, 62.5 km
-    └── <YYYY>/<MM>/<DD>/     Per-swath-pair files (AMSR2); currently 13–31 Jul 2019 only
+├── OSI455/south/single_sensor/
+│   └── <YYYY>/<MM>/          AMSR2 (GCOM-W1) daily files, same grid as merged, with
+│                             true sensing-time t0/t1 maps; 2019 only (SH files only)
+└── S2S/                      OSISAF S2S swath-to-swath drift, 62.5 km (polar stereographic)
+    └── <YYYY>/<MM>/<DD>/     Per-swath-pair files (AMSR2), <DD> = end-swath day;
+                              currently 13–31 Jul 2019 only
 ```
 
 ## Open gaps and decisions
